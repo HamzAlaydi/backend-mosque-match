@@ -1,0 +1,759 @@
+{
+  "info": {
+    "_postman_id": "YOUR_POSTMAN_COLLECTION_ID",
+    "name": "Marriage Platform API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"testuser@example.com\",\n    \"password\": \"password123\",\n    \"role\": \"male\",\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"location\": {\n        \"type\": \"Point\",\n        \"coordinates\": [12.345, 67.890]\n    },\n    \"countryOfBirth\": \"USA\",\n    \"dateOfBirth\": \"1990-01-15\",\n    \"citizenship\": \"US\",\n    \"originCountry\": \"USA\",\n    \"languages\": [\"English\"],\n    \"maritalStatus\": \"Single\",\n    \"beard\": \"yes\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"testuser@example.com\",\n    \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/user",
+              "variable": []
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Update User Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"firstName\": \"UpdatedJohn\",\n    \"lastName\": \"UpdatedDoe\",\n    \"location\": {\n        \"type\": \"Point\",\n        \"coordinates\": [12.345, 67.890]\n    },\n    \"countryOfBirth\": \"USA\",\n    \"dateOfBirth\": \"1990-01-15\",\n    \"citizenship\": \"US\",\n    \"originCountry\": \"USA\",\n    \"languages\": [\"English\", \"Spanish\"],\n    \"maritalStatus\": \"Single\",\n    \"beard\": \"yes\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/profile",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Profile Picture",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              },
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "profilePicture",
+                  "value": "",
+                  "type": "file"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/profile/picture",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Request Unblur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/profile/picture/unblur",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Unblur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/profile/picture/unblur/USER_ID",
+              "variable": [
+                {
+                  "key": "USER_ID",
+                  "value": "user_id",
+                  "description": "The ID of the user whose picture you want to unblur."
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/USER_ID",
+              "variable": [
+                {
+                  "key": "USER_ID",
+                  "value": "user_id",
+                  "description": "The ID of the user to retrieve."
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Mosques",
+      "item": [
+        {
+          "name": "Get All Mosques",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/mosques",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Mosque",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"New Mosque\",\n    \"location\": {\n        \"type\": \"Point\",\n        \"coordinates\": [12.345, 67.890]\n    },\n    \"address\": \"123 Main St\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mosques",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Mosque by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/mosques/MOSQUE_ID",
+              "variable": [
+                {
+                  "key": "MOSQUE_ID",
+                  "value": "mosque_id",
+                  "description": "The ID of the mosque to retrieve."
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Request Manage Mosque",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/mosques/MOSQUE_ID/request-manage",
+              "variable": [
+                {
+                  "key": "MOSQUE_ID",
+                  "value": "mosque_id",
+                  "description": "The ID of the mosque to request management of."
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Imam Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/mosques/MOSQUE_ID/approve-imam/IMAM_ID",
+              "variable": [
+                {
+                  "key": "MOSQUE_ID",
+                  "value": "mosque_id",
+                  "description": "The ID of the mosque."
+                },
+                {
+                  "key": "IMAM_ID",
+                  "value": "imam_id",
+                  "description": "The ID of the imam to approve."
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Females in Mosque",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/mosques/MOSQUE_ID/females",
+              "variable": [
+                {
+                  "key": "MOSQUE_ID",
+                  "value": "mosque_id",
+                  "description": "The ID of the mosque to get females from."
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Chats",
+      "item": [
+        {
+          "name": "Get Chat Messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chats/USER_ID",
+              "variable": [
+                {
+                  "key": "USER_ID",
+                  "value": "user_id",
+                  "description": "The ID of the other user in the chat."
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"receiverId\": \"string\",\n    \"text\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chats/send",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Request Photo Access",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chats/request-photo/USER_ID",
+              "variable": [
+                {
+                  "key": "USER_ID",
+                  "value": "user_id",
+                  "description": "The ID of the user to request photo access from."
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Photo Access",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chats/approve-photo/USER_ID",
+              "variable": [
+                {
+                  "key": "USER_ID",
+                  "value": "user_id",
+                  "description": "The ID of the user who sent the photo access request."
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Matches",
+      "item": [
+        {
+          "name": "Find Matches",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/search?distance=10",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Find Matches by Mosque",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/mosque/MOSQUE_ID",
+              "variable": [
+                {
+                  "key": "MOSQUE_ID",
+                  "value": "mosque_id",
+                  "description": "The ID of the mosque to find matches in."
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Interests",
+      "item": [
+        {
+          "name": "Add to Interest List",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"femaleId\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/interests/add",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove from Interest List",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"femaleId\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/interests/remove",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Interest List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/interests",
+              "variable": []
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Imams",
+      "item": [
+        {
+          "name": "Get All Imams",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/imams",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Imam by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/imams/IMAM_ID",
+              "variable": [
+                {
+                  "key": "IMAM_ID",
+                  "value": "imam_id",
+                  "description": "The ID of the imam to retrieve."
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Male Verification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/imams/IMAM_ID/verify-male/MALE_ID",
+              "variable": [
+                {
+                  "key": "IMAM_ID",
+                  "value": "imam_id",
+                  "description": "The ID of the imam approving the verification."
+                },
+                {
+                  "key": "MALE_ID",
+                  "value": "male_id",
+                  "description": "The ID of the male user to verify."
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Male Verification",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/imams/IMAM_ID/verify-male/MALE_ID",
+              "variable": [
+                {
+                  "key": "IMAM_ID",
+                  "value": "imam_id",
+                  "description": "The ID of the imam rejecting the verification."
+                },
+                {
+                  "key": "MALE_ID",
+                  "value": "male_id",
+                  "description": "The ID of the male user whose verification is rejected."
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get All Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications",
+              "variable": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark as Read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/NOTIFICATION_ID/read",
+              "variable": [
+                {
+                  "key": "NOTIFICATION_ID",
+                  "value": "notification_id",
+                  "description": "The ID of the notification to mark as read."
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/NOTIFICATION_ID",
+              "variable": [
+                {
+                  "key": "NOTIFICATION_ID",
+                  "value": "notification_id",
+                  "description": "The ID of the notification to delete."
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "description": "Base URL of the API"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "description": "JWT token for authorization"
+    }
+  ]
+}

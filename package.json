@@ -1,0 +1,30 @@
+{
+  "name": "backend-mosque-match",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1578.0",
+    "axios": "^1.6.8",
+    "backend-mosque-match": "file:",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^4.17.1",
+    "express-validator": "^6.14.0",
+    "jsonwebtoken": "^8.5.1",
+    "mongoose": "^6.2.1",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "passport": "^0.6.0",
+    "passport-jwt": "^4.0.0",
+    "socket.io": "^4.7.4"
+  }
+}
