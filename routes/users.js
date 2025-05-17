@@ -12,11 +12,10 @@ const roles = require("../middleware/roles");
 const upload = require("../middleware/upload");
 const { userUpdateValidation } = require("../utils/validation");
 
-// @route   PUT /api/users/profile
+// @route   patch /api/users/profile
 // @desc    Update user profile
 // @access  Private
-router.put("/profile", auth, userUpdateValidation, updateUserProfile);
-
+router.patch("/profile", auth, userUpdateValidation, updateUserProfile);
 // @route   PUT /api/users/profile/picture
 // @desc    Update user profile picture
 // @access  Private

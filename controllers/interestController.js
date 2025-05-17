@@ -33,10 +33,17 @@ exports.addToInterestList = async (req, res) => {
     });
 
     await newInterest.save();
-
-    //send notification to the female user.
-    const io = req.app.get("io"); // Get the Socket.IO instance
-    io.to(femaleId).emit("interestReceived", { maleId });
+    try {
+      const io = req.app.get("io");
+      if (io) {
+        io.to(femaleId).emit("interestReceived", { maleId });
+      } else {
+        console.warn("Socket.IO instance not found on app");
+      }
+    } catch (socketError) {
+      console.error("Socket emit failed:", socketError.message);
+      // You can optionally continue even if emit fails
+    }
 
     res.status(201).json({ message: "Interest added successfully" });
   } catch (err) {

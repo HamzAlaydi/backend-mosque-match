@@ -18,7 +18,8 @@ const imamRoutes = require("./routes/imams");
 const notificationRoutes = require("./routes/notifications");
 
 const app = express();
-
+app.use(express.json()); // For parsing application/json
+app.use(express.urlencoded({ extended: true })); // For parsing application/x-www-form-urlencoded
 // Connect to MongoDB
 connectDB();
 

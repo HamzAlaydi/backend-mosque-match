@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const User = require("../models/User");
 const { validationResult } = require("express-validator");
 const { userUpdateValidation } = require("../utils/validation");
-const { uploadToS3 } = require("../services/awsService"); // Import the upload function
+const { uploadToS3 } = require("../services/awsService");
 
 // @desc    Update user profile
 // @route   PUT /api/users/profile
@@ -13,32 +13,97 @@ exports.updateUserProfile = async (req, res) => {
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
+
   try {
     const user = await User.findById(req.user.id);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    // Update user fields
-    const updates = Object.keys(req.body);
+
+    // Define all allowed fields for update
     const allowedUpdates = [
       "firstName",
       "lastName",
-      "location",
+      "currentLocation",
       "countryOfBirth",
-      "dateOfBirth",
+      "birthDate",
       "citizenship",
       "originCountry",
       "languages",
       "maritalStatus",
-      "hijab",
-      "beard",
-    ]; // Add fields you want to be updatable here
-    updates.forEach((update) => {
-      if (allowedUpdates.includes(update)) {
-        user[update] = req.body[update];
+      "educationLevel",
+      "profession",
+      "jobTitle",
+      "income",
+      "firstLanguage",
+      "secondLanguage",
+      "religiousness",
+      "sector",
+      "isRevert",
+      "keepsHalal",
+      "prayerFrequency",
+      "quranReading",
+      "childrenDesire",
+      "hasChildren",
+      "livingArrangement",
+      "height",
+      "build",
+      "ethnicity",
+      "smokes",
+      "drinks",
+      "disability",
+      "phoneUsage",
+      "willingToRelocate",
+      "tagLine",
+      "about",
+      "lookingFor",
+      "marriageWithin",
+      "wearsHijab",
+      "hasBeard",
+    ];
+
+    // Gender-specific fields
+    if (user.gender === "female") {
+      allowedUpdates.push(
+        "hijab",
+        "wearsHijab",
+        "wali.name",
+        "wali.phone",
+        "wali.email",
+        "wali.relationship"
+      );
+    } else if (user.gender === "male") {
+      allowedUpdates.push("beard", "hasBeard");
+    }
+
+    // Update user fields from request body
+    Object.keys(req.body).forEach((field) => {
+      // Check if it's an allowed field or a nested field
+      if (allowedUpdates.includes(field)) {
+        user[field] = req.body[field];
+      } else if (field.includes(".")) {
+        // Handle nested fields like wali.name
+        const [parent, child] = field.split(".");
+        if (allowedUpdates.includes(`${parent}.${child}`)) {
+          if (!user[parent]) user[parent] = {};
+          user[parent][child] = req.body[field];
+        }
       }
     });
+
+    // Handle specific field updates
+    if (
+      req.body.currentLocation &&
+      typeof req.body.currentLocation === "object"
+    ) {
+      if (req.body.currentLocation.coordinates) {
+        user.currentLocation.coordinates = req.body.currentLocation.coordinates;
+      }
+      if (req.body.currentLocation.address) {
+        user.currentLocation.address = req.body.currentLocation.address;
+      }
+    }
 
     await user.save();
     res.json(user);
@@ -61,6 +126,7 @@ exports.updateProfilePicture = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
+
     // Upload to S3
     const result = await uploadToS3(req.file);
     user.profilePicture = result.Location; // Save the S3 URL
@@ -86,11 +152,12 @@ exports.requestUnblur = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    //  Logic for requesting unblur.
+
+    // Logic for requesting unblur
     user.unblurRequest = true; // Set unblur request to true
     await user.save();
 
-    //send notification
+    // Send notification
     const io = req.app.get("io"); // Get the Socket.IO instance
     io.emit("unblurRequest", { userId: user._id });
 
@@ -112,6 +179,7 @@ exports.approveUnblur = async (req, res) => {
         .status(403)
         .json({ message: "Only imams can approve unblur requests" });
     }
+
     const userToUnblur = await User.findById(req.params.userId);
     if (!userToUnblur) {
       return res.status(404).json({ message: "User not found" });
@@ -119,6 +187,13 @@ exports.approveUnblur = async (req, res) => {
 
     userToUnblur.blurredProfilePicture = null; // Set blurred picture to null, showing the original
     userToUnblur.unblurRequest = false;
+
+    // Add user to approver's list of users with approved photos
+    if (!approver.approvedPhotosFor.includes(userToUnblur._id)) {
+      approver.approvedPhotosFor.push(userToUnblur._id);
+      await approver.save();
+    }
+
     await userToUnblur.save();
 
     res.json({ message: "Profile picture unblurred" });
@@ -138,6 +213,39 @@ exports.getUserById = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
     res.json(user);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};
+
+// @desc    Update mosque attachments
+// @route   PUT /api/users/mosques
+// @access  Private
+exports.updateMosqueAttachments = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const { attachedMosques, distance } = req.body;
+
+    if (attachedMosques) {
+      user.attachedMosques = attachedMosques;
+    }
+
+    if (distance) {
+      user.distance = distance;
+    }
+
+    await user.save();
+
+    res.json({
+      message: "Mosque attachments updated successfully",
+      attachedMosques: user.attachedMosques,
+      distance: user.distance,
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");

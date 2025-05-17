@@ -2,45 +2,60 @@ const { body } = require("express-validator");
 
 // Validation rules for user registration
 exports.userRegisterValidation = [
-  body("email", "Invalid email").isEmail().normalizeEmail(),
-  body("password", "Password must be at least 6 characters").isLength({
-    min: 6,
-  }),
-  body("role", "Role is required")
-    .not()
-    .isEmpty()
-    .isIn(["male", "female", "imam", "superadmin"]),
-  // Conditional validation based on role
-  body("wali.name", "Wali name is required for females")
-    .if(body("role").equals("female"))
-    .not()
-    .isEmpty(),
-  body("wali.relationship", "Wali relationship is required for females")
-    .if(body("role").equals("female"))
-    .not()
-    .isEmpty(),
-  body("wali.contact", "Wali contact is required for females")
-    .if(body("role").equals("female"))
-    .not()
-    .isEmpty(),
-  body("beard", "Beard is required for males")
-    .if(body("role").equals("male"))
-    .isIn(["yes", "no", "some"]),
-  body("phone", "Phone is required for imams")
+  body("firstName").notEmpty().withMessage("firstName Is Required"),
+  body("lastName").notEmpty().withMessage("lastName Is Required"),
+  body("email").isEmail().normalizeEmail().withMessage("Invalid email"),
+  body("password")
+    .isLength({ min: 6 })
+    .withMessage("Password must be at least 6 characters"),
+  body("gender")
+    .notEmpty()
+    .isIn(["male", "female"])
+    .withMessage("Gender is required"),
+  body("role")
+    .notEmpty()
+    .isIn(["male", "female", "imam", "superadmin"])
+    .withMessage("Role is required"),
+
+  // Female validations
+  body("wali.name")
+    .if(body("gender").equals("female"))
+    .notEmpty()
+    .withMessage("Wali name is required for females"),
+  body("wali.phone")
+    .if(body("gender").equals("female"))
+    .notEmpty()
+    .withMessage("Wali phone is required for females"),
+  body("wali.email")
+    .if(body("gender").equals("female"))
+    .notEmpty()
+    .withMessage("Wali email is required for females")
+    .isEmail()
+    .withMessage("Invalid Wali email"),
+
+  // Imam validations
+  body("phone")
     .if(body("role").equals("imam"))
-    .not()
-    .isEmpty(),
-  body("mosque", "Mosque is required for imams")
+    .notEmpty()
+    .withMessage("Phone is required for imams"),
+  body("mosqueDetails.id")
     .if(body("role").equals("imam"))
-    .not()
-    .isEmpty(),
-  body("languages", "Languages is required for imams")
+    .notEmpty()
+    .withMessage("Mosque ID is required for imams"),
+  body("languages")
     .if(body("role").equals("imam"))
-    .isArray({ min: 1 }),
-  body("messageToCommunity", "Message to community is required for imams")
+    .isArray({ min: 1 })
+    .withMessage("Languages is required for imams"),
+  body("message")
     .if(body("role").equals("imam"))
-    .not()
-    .isEmpty(),
+    .notEmpty()
+    .withMessage("Message to community is required for imams"),
+
+  body("terms")
+    .isBoolean()
+    .withMessage("Terms must be a boolean")
+    .custom((value) => value === true)
+    .withMessage("You must accept terms"),
 ];
 
 // Validation rules for user login
@@ -49,19 +64,77 @@ exports.userLoginValidation = [
   body("password", "Password is required").not().isEmpty(),
 ];
 
+// Validation rules for user profile update
 exports.userUpdateValidation = [
-  body("email", "Invalid email").isEmail().normalizeEmail(),
+  body("email", "Invalid email").optional().isEmail().normalizeEmail(),
   body("firstName", "First name must be string").optional().isString(),
   body("lastName", "Last name must be string").optional().isString(),
+  body("birthDate", "Birth date must be a valid date").optional().isISO8601(),
   body("countryOfBirth", "Country of birth must be string")
     .optional()
     .isString(),
-  body("citizenship", "citizenship must be string").optional().isString(),
+  body("citizenship", "Citizenship must be string").optional().isString(),
   body("originCountry", "Origin Country must be string").optional().isString(),
-  body("maritalStatus", "maritalStatus must be string").optional().isString(),
-  body("hijab", "hijab must be string").optional().isString(),
-  body("beard", "beard must be string").optional().isString(),
+  body("maritalStatus", "Marital status must be string").optional().isString(),
+  body("educationLevel", "Education level must be string")
+    .optional()
+    .isString(),
+  body("profession", "Profession must be string").optional().isString(),
+  body("jobTitle", "Job title must be string").optional().isString(),
+  body("income", "Income must be string").optional().isString(),
+  body("religiousness", "Religiousness must be string").optional().isString(),
+  body("sector", "Sector must be string").optional().isString(),
+  body("isRevert", "isRevert must be boolean").optional().isBoolean(),
+  body("keepsHalal", "keepsHalal must be boolean").optional().isBoolean(),
+  body("prayerFrequency", "Prayer frequency must be string")
+    .optional()
+    .isString(),
+  body("quranReading", "Quran reading must be string").optional().isString(),
+  body("childrenDesire", "Children desire must be string")
+    .optional()
+    .isString(),
+  body("hasChildren", "Has children must be string").optional().isString(),
+  body("livingArrangement", "Living arrangement must be string")
+    .optional()
+    .isString(),
+  body("height", "Height must be string").optional().isString(),
+  body("build", "Build must be string").optional().isString(),
+  body("ethnicity", "Ethnicity must be string").optional().isString(),
+  body("smokes", "Smokes must be boolean").optional().isBoolean(),
+  body("drinks", "Drinks must be boolean").optional().isBoolean(),
+  body("disability", "Disability must be boolean").optional().isBoolean(),
+  body("phoneUsage", "Phone usage must be string").optional().isString(),
+  body("hijab", "Hijab must be string")
+    .optional()
+    .isString()
+    .isIn(["yes", "no", "sometimes"]),
+  body("wearsHijab", "WearsHijab must be boolean").optional().isBoolean(),
+  body("beard", "Beard must be string")
+    .optional()
+    .isString()
+    .isIn(["yes", "no", "some"]),
+  body("hasBeard", "HasBeard must be boolean").optional().isBoolean(),
+  body("willingToRelocate", "WillingToRelocate must be boolean")
+    .optional()
+    .isBoolean(),
+  body("tagLine", "Tag line must be string").optional().isString(),
+  body("about", "About must be string").optional().isString(),
+  body("lookingFor", "Looking for must be string").optional().isString(),
 ];
+
+// Validation rules for updating user profile controller
+exports.userProfileUpdateValidation = [
+  body("email", "Invalid email").optional().isEmail().normalizeEmail(),
+  body("firstName", "First name is required").optional().notEmpty(),
+  body("lastName", "Last name is required").optional().notEmpty(),
+  body("countryOfBirth", "Country of birth is required").optional().notEmpty(),
+  body("citizenship", "Citizenship is required").optional().notEmpty(),
+  body("originCountry", "Origin country is required").optional().notEmpty(),
+  body("maritalStatus", "Marital status is required").optional().notEmpty(),
+  body("religiousness", "Religiousness is required").optional().notEmpty(),
+  body("sector", "Sector is required").optional().notEmpty(),
+];
+
 // Validation rules for creating a mosque
 exports.createMosqueValidation = [
   body("name", "Name is required").not().isEmpty(),

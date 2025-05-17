@@ -7,74 +7,123 @@ const Mosque = require("../models/Mosque");
 // @access  Private
 exports.findMatches = async (req, res) => {
   try {
-    const male = await User.findById(req.user.id).populate("mosque"); // Populate the mosque field
-    if (male.role !== "male") {
+    // Validate current user
+    const currentUser = await User.findById(req.user.id);
+    if (!currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Determine target gender based on current user's role
+    let targetRole;
+    if (currentUser.role === "male") {
+      targetRole = "female";
+    } else if (currentUser.role === "female") {
+      targetRole = "male";
+    } else {
       return res
-        .status(400)
-        .json({ message: "Only males can search for matches" });
+        .status(403)
+        .json({ message: "Only males and females can search" });
     }
 
-    const { distance } = req.query; // Distance in kilometers
-    if (!distance) {
-      return res.status(400).json({ message: "Distance is required" });
+    // Validate distance parameter
+    const distance = Math.min(Number(req.query.distance) || 20);
+    if (distance > 500) {
+      return res.status(400).json({ message: "Max distance 500 miles" });
     }
-    const userLocation = male.location;
 
-    // Find mosques within the specified distance
-    const nearbyMosques = await Mosque.find({
-      location: {
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: userLocation.coordinates,
-          },
-          $maxDistance: distance * 1000, // Convert km to meters
+    // Validate attached mosques
+    if (!currentUser.attachedMosques?.length) {
+      return res.status(400).json({ message: "Attach mosques to search" });
+    }
+
+    // Convert miles to radians (Earth radius: 3958.8 miles)
+    const radius = distance / 3958.8;
+
+    // Build search conditions
+    const searchConditions = currentUser.attachedMosques.map((mosque) => ({
+      "attachedMosques.location": {
+        $geoWithin: {
+          $centerSphere: [
+            // Validate coordinate order: [longitude, latitude]
+            [mosque.location.coordinates[0], mosque.location.coordinates[1]],
+            radius,
+          ],
         },
       },
+    }));
+
+    // Execute search with validation
+    const matches = await User.find({
+      role: targetRole,
+      $or: searchConditions,
+    })
+      .select("-password -managedMosques -approvedPhotosFor")
+      .lean();
+
+    // Add distance calculations to results
+    const results = matches.map((match) => {
+      const closest = match.attachedMosques.reduce((min, mosque) => {
+        const dist = getDistance(
+          currentUser.attachedMosques[0].location.coordinates,
+          mosque.location.coordinates
+        );
+        return dist < min ? dist : min;
+      }, Infinity);
+
+      return { ...match, distance: Math.round(closest) };
     });
 
-    // Get females associated with those mosques
-    let femaleIds = [];
-    nearbyMosques.forEach((mosque) => {
-      femaleIds = femaleIds.concat(mosque.females);
-    });
-
-    const females = await User.find({
-      _id: { $in: femaleIds },
-      role: "female",
-    }).select("-password");
-
-    res.json(females);
+    res.json(results.sort((a, b) => a.distance - b.distance));
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
+    console.error("Search Error:", err);
+    res.status(500).json({ message: "Search failed", error: err.message });
   }
 };
 
+// Haversine distance calculation
+function getDistance([lon1, lat1], [lon2, lat2]) {
+  const R = 3958.8; // Earth radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 // @desc    Get matches for a male user by mosque ID
 // @route   GET /api/matches/mosque/:mosqueId
 // @access  Private
 exports.findMatchesByMosque = async (req, res) => {
   try {
-    const male = await User.findById(req.user.id);
-    if (male.role !== "male") {
-      return res
-        .status(400)
-        .json({ message: "Only males can search for matches" });
+    const currentUser = await User.findById(req.user.id);
+    if (!currentUser) {
+      return res.status(404).json({ message: "User not found" });
     }
+
     const mosqueId = req.params.mosqueId;
 
-    const mosque = await Mosque.findById(mosqueId);
-    if (!mosque) {
-      return res.status(404).json({ message: "Mosque not found" });
+    // Determine target role based on current user's role
+    let targetRole;
+    if (currentUser.role === "male") {
+      targetRole = "female";
+    } else if (currentUser.role === "female") {
+      targetRole = "male";
+    } else {
+      return res
+        .status(403)
+        .json({ message: "Only males and females can search" });
     }
-    // Find females associated with the specified mosque
-    const females = await User.find({
-      mosque: mosqueId,
-      role: "female",
+
+    // Find users of the opposite gender associated with the specified mosque ID
+    const matches = await User.find({
+      "attachedMosques.id": mosqueId,
+      role: targetRole,
     }).select("-password");
 
-    res.json(females);
+    res.json(matches);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
