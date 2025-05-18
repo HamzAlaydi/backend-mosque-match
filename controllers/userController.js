@@ -4,6 +4,21 @@ const { validationResult } = require("express-validator");
 const { userUpdateValidation } = require("../utils/validation");
 const { uploadToS3 } = require("../services/awsService");
 
+// @route   GET /api/users/me
+// @desc    Get current user profile
+// @access  Private
+exports.getCurrentUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password"); // Exclude password for security
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 // @desc    Update user profile
 // @route   PUT /api/users/profile
 // @access  Private
@@ -133,26 +148,28 @@ exports.updateUserProfile = async (req, res) => {
 exports.updateProfilePicture = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
+    // Get sanitized filename from uploadToS3 result
+    const result = await uploadToS3(
+      req.file.buffer,
+      req.file.originalname, // Original filename will be sanitized in uploadToS3
+      process.env.AWS_BUCKET_NAME,
+      req.file.mimetype
+    );
 
-    // Upload to S3
-    const result = await uploadToS3(req.file);
-    user.profilePicture = result.Location; // Save the S3 URL
-    user.blurredProfilePicture = result.Location; // initially the blurred and unblurred are the same
+    user.profilePicture = result.s3Url;
+    user.blurredProfilePicture = result.s3Url;
+
     await user.save();
 
     res.json({
       message: "Profile picture updated successfully",
-      profilePicture: result.Location,
+      profilePicture: result.s3Url,
     });
   } catch (err) {
-    console.error(err.message);
+    console.error("Profile picture error:", err);
     res.status(500).send("Server error");
   }
 };

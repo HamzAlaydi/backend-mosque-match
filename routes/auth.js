@@ -16,11 +16,18 @@ const {
   forgotPasswordValidation,
   resetPasswordValidation,
 } = require("../utils/validation"); // Import validations
+const upload = require("../middleware/upload");
+const multer = require("multer");
 
 // @route   POST /api/auth/register
 // @desc    Register user
 // @access  Public
-router.post("/register", userRegisterValidation, registerUser);
+router.post(
+  "/register",
+  userRegisterValidation,
+  upload.single("profilePicture"),
+  registerUser
+);
 
 // @route   POST /api/auth/login
 // @desc    Login user

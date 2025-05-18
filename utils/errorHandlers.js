@@ -1,3 +1,5 @@
+const multer = require("multer");
+
 exports.errorHandler = (err, req, res, next) => {
   console.error(err); // Log the error for debugging
 

@@ -98,7 +98,7 @@ const UserSchema = new Schema(
     hasBeard: Boolean,
 
     // Profile Pictures
-    profilePicture: String,
+    profilePicture: { type: String, default: null },
     blurredProfilePicture: String,
     unblurRequest: { type: Boolean, default: false },
 

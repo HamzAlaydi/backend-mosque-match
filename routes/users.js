@@ -7,11 +7,13 @@ const {
   requestUnblur,
   approveUnblur,
   getUserById,
+  getCurrentUser,
 } = require("../controllers/userController");
 const roles = require("../middleware/roles");
 const upload = require("../middleware/upload");
 const { userUpdateValidation } = require("../utils/validation");
 
+router.get("/me", auth, getCurrentUser);
 // @route   patch /api/users/profile
 // @desc    Update user profile
 // @access  Private

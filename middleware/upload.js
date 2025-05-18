@@ -1,32 +1,22 @@
 const multer = require("multer");
 const path = require("path");
 
-// Set up multer for file upload
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/"); // Store uploaded files in the 'uploads' directory
-  },
-  filename: (req, file, cb) => {
-    const extname = path.extname(file.originalname);
-    const filename = `${Date.now()}${extname}`; // Use timestamp to ensure unique filenames
-    cb(null, filename);
-  },
-});
+// Change to memory storage for direct buffer access
+const storage = multer.memoryStorage(); // <<-- This is the crucial change
 
 const fileFilter = (req, file, cb) => {
-  // Only allow JPEG and PNG image files
   if (file.mimetype === "image/jpeg" || file.mimetype === "image/png") {
-    cb(null, true); // Accept the file
+    cb(null, true);
   } else {
-    cb(null, false); // Reject the file
+    cb(null, false);
   }
 };
 
 const upload = multer({
-  storage: storage,
+  storage: storage, // Now using memory storage
   fileFilter: fileFilter,
   limits: {
-    fileSize: 1024 * 1024 * 5, // Limit file size to 5MB
+    fileSize: 1024 * 1024 * 5,
   },
 });
 
