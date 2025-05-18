@@ -61,6 +61,7 @@ exports.updateUserProfile = async (req, res) => {
       "marriageWithin",
       "wearsHijab",
       "hasBeard",
+      "attachedMosques", // Include attachedMosques in allowed updates
     ];
 
     // Gender-specific fields
@@ -103,6 +104,19 @@ exports.updateUserProfile = async (req, res) => {
       if (req.body.currentLocation.address) {
         user.currentLocation.address = req.body.currentLocation.address;
       }
+    }
+
+    // Handle attachedMosques updates
+    if (req.body.attachedMosques) {
+      user.attachedMosques = req.body.attachedMosques.map((mosque) => ({
+        id: mosque.id,
+        name: mosque.name,
+        address: mosque.address,
+        location: {
+          type: "Point",
+          coordinates: mosque.location.coordinates,
+        },
+      }));
     }
 
     await user.save();

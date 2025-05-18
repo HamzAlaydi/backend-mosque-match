@@ -146,3 +146,16 @@ exports.createMosqueValidation = [
     .isNumeric(),
   body("address", "Address is required").not().isEmpty(),
 ];
+
+// Forgot password validation
+exports.forgotPasswordValidation = [
+  body("email", "Please include a valid email").isEmail(),
+];
+
+// Reset password validation
+exports.resetPasswordValidation = [
+  body("token", "Reset token is required").notEmpty(),
+  body("password", "Password must be at least 6 characters").isLength({
+    min: 6,
+  }),
+];

@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const { Schema } = mongoose;
+const jwt = require("jsonwebtoken");
 
 const UserSchema = new Schema(
   {
@@ -116,7 +117,7 @@ const UserSchema = new Schema(
     distance: { type: Number, default: 6 },
     attachedMosques: [
       {
-        id: { type: [String, Number], required: false }, // Accept both string and number
+        id: { type: Number, required: false }, // Accept both string and number
         name: String,
         address: String,
         location: {

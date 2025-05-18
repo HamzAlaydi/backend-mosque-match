@@ -1,37 +1,48 @@
+// Updated emailService.js with Gmail configuration
+
 const nodemailer = require("nodemailer");
 
 const sendEmail = async (options) => {
-  const transporter = nodemailer.createTransporter({
-    host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    secure: process.env.EMAIL_SECURE === "true",
+  // Create a transporter using Gmail
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
+      user: "hamza.alaydi.99@gmail.com", // Your Gmail address
+      pass: "lzfg wwgw imgs kmtm", // Your Gmail app password
     },
   });
 
   const mailOptions = {
-    from: `${process.env.FROM_NAME} <${process.env.FROM_EMAIL}>`,
+    from: '"Mosque Match" <mosque-match@gmail.com>', // Sender address
     to: options.email,
     subject: options.subject,
     html: options.html,
   };
 
-  await transporter.sendMail(mailOptions);
+  // Send email
+  const info = await transporter.sendMail(mailOptions);
+  console.log("Email sent: %s", info.messageId);
+  return info;
 };
 
 const sendVerificationEmail = async (user, verificationUrl) => {
   const message = `
-    <h1>Email Confirmation</h1>
-    <p>Thank you for registering with our app. Please confirm your email by clicking on the following link:</p>
-    <a href="${verificationUrl}" target="_blank">Verify Your Email</a>
-    <p>This link will expire in 24 hours.</p>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 5px;">
+      <h1 style="color: #4CAF50; text-align: center;">Welcome to Mosque Match!</h1>
+      <p>Assalamu alaikum ${user.firstName},</p>
+      <p>Thank you for registering with Mosque Match. To complete your registration, please verify your email by clicking the button below:</p>
+      <div style="text-align: center; margin: 25px 0;">
+        <a href="${verificationUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">Verify Your Email</a>
+      </div>
+      <p>This verification link will expire in 24 hours.</p>
+      <p>If you did not create an account with us, please disregard this email.</p>
+      <p>Jazak Allah Khair,<br>The Mosque Match Team</p>
+    </div>
   `;
 
   await sendEmail({
     email: user.email,
-    subject: "Email Confirmation",
+    subject: "Verify Your Mosque Match Account",
     html: message,
   });
 };

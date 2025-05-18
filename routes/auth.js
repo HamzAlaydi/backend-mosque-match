@@ -6,11 +6,15 @@ const {
   getUser,
   verifyEmail,
   resendVerification,
+  forgotPassword,
+  resetPassword,
 } = require("../controllers/authController");
 const auth = require("../middleware/auth");
 const {
   userRegisterValidation,
   userLoginValidation,
+  forgotPasswordValidation,
+  resetPasswordValidation,
 } = require("../utils/validation"); // Import validations
 
 // @route   POST /api/auth/register
@@ -29,6 +33,8 @@ router.post("/login", userLoginValidation, loginUser);
 router.get("/user", auth, getUser);
 router.post("/verify-email", verifyEmail);
 router.post("/resend-verification", resendVerification);
-
+// Password reset routes
+router.post("/forgot-password", forgotPasswordValidation, forgotPassword);
+router.post("/reset-password", resetPasswordValidation, resetPassword);
 
 module.exports = router;

@@ -142,7 +142,7 @@ exports.registerUser = async (req, res) => {
     // Generate verification token
     const verificationToken = user.generateVerificationToken();
     await user.save();
-    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}&email=${user.email}`;
+    const verificationUrl = `${process.env.FRONTEND_URL}/auth/verify-email?token=${verificationToken}&email=${user.email}`;
     await sendVerificationEmail(user, verificationUrl);
 
     res.status(201).json({
@@ -168,7 +168,7 @@ exports.loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    // Check if email is verified
+    // Check if email is verified - uncomment and enable this block
     if (!user.isEmailVerified) {
       return res.status(401).json({
         message: "Please verify your email before logging in",
@@ -192,7 +192,6 @@ exports.loginUser = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
 // @desc    Get logged in user data
 // @route   GET /api/auth/user
 // @access  Private
@@ -271,7 +270,7 @@ exports.resendVerification = async (req, res) => {
     await user.save();
 
     // Create the verification URL
-    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}&email=${user.email}`;
+    const verificationUrl = `${process.env.FRONTEND_URL}/auth/verify-email?token=${verificationToken}&email=${user.email}`;
 
     // Send the verification email
     await sendVerificationEmail(user, verificationUrl);
@@ -283,6 +282,111 @@ exports.resendVerification = async (req, res) => {
     res.status(500).json({
       message: "Failed to resend verification email",
       error: error.message,
+    });
+  }
+};
+
+// @desc    Send password reset email
+// @route   POST /api/auth/forgot-password
+// @access  Public
+exports.forgotPassword = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      // For security reasons, we don't want to reveal that the email doesn't exist
+      // We'll still return a success message
+      return res.status(200).json({
+        message:
+          "If your email is registered, you will receive password reset instructions shortly",
+      });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+
+    // Hash the reset token
+    const hashedResetToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    // Save the hashed token to the user's document
+    user.resetPasswordToken = hashedResetToken;
+    user.resetPasswordExpires = Date.now() + 3600000; // Token valid for 1 hour
+
+    await user.save();
+
+    // Create the reset URL that will be sent to the user's email
+    const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password/${resetToken}`;
+
+    // Send the email
+    await sendPasswordResetEmail(user, resetUrl);
+
+    res.status(200).json({
+      message:
+        "If your email is registered, you will receive password reset instructions shortly",
+    });
+  } catch (error) {
+    console.error("Password reset error:", error);
+    res.status(500).json({
+      message: "Something went wrong while processing your request",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// @desc    Reset password with token
+// @route   POST /api/auth/reset-password
+// @access  Public
+exports.resetPassword = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { token, password } = req.body;
+
+  try {
+    // Hash the token from the URL to compare with the one in the database
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Find user with the hashed token and check if the token hasn't expired
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Password reset token is invalid or has expired",
+      });
+    }
+
+    // Set the new password
+    user.password = password; // Will be hashed by the pre-save middleware in the User model
+
+    // Clear the reset token fields
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Password has been reset successfully",
+    });
+  } catch (error) {
+    console.error("Password reset error:", error);
+    res.status(500).json({
+      message: "Something went wrong while processing your request",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
