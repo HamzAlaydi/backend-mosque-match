@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const User = require("../models/User");
 const Mosque = require("../models/Mosque");
 
-// @desc    Find matches for a male user within a distance
+// @desc    Find matches for a user within a distance with filters
 // @route   GET /api/matches/search
 // @access  Private
 exports.findMatches = async (req, res) => {
@@ -26,25 +26,39 @@ exports.findMatches = async (req, res) => {
     }
 
     // Validate distance parameter
-    const distance = Math.min(Number(req.query.distance) || 20);
-    if (distance > 500) {
-      return res.status(400).json({ message: "Max distance 500 miles" });
-    }
+    const distance = Math.min(Number(req.query.distance) || 20, 500);
 
     // Validate attached mosques
     if (!currentUser.attachedMosques?.length) {
       return res.status(400).json({ message: "Attach mosques to search" });
     }
 
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
     // Convert miles to radians (Earth radius: 3958.8 miles)
     const radius = distance / 3958.8;
+
+    // Extract filter parameters from query
+    const {
+      religiousness,
+      maritalStatus,
+      minAge,
+      maxAge,
+      hasChildren,
+      childrenDesire,
+      educationLevel,
+      profession,
+      willingToRelocate,
+    } = req.query;
 
     // Build search conditions
     const searchConditions = currentUser.attachedMosques.map((mosque) => ({
       "attachedMosques.location": {
         $geoWithin: {
           $centerSphere: [
-            // Validate coordinate order: [longitude, latitude]
             [mosque.location.coordinates[0], mosque.location.coordinates[1]],
             radius,
           ],
@@ -52,12 +66,88 @@ exports.findMatches = async (req, res) => {
       },
     }));
 
-    // Execute search with validation
-    const matches = await User.find({
+    const filterConditions = {
       role: targetRole,
       $or: searchConditions,
-    })
+    };
+
+    // Add demographic filters if provided
+    if (religiousness) {
+      // Handle both array and string formats
+      const religionValues = Array.isArray(religiousness)
+        ? religiousness
+        : religiousness.split(",").map((val) => val.toLowerCase());
+      filterConditions.religiousness = { $in: religionValues };
+    }
+
+    if (maritalStatus) {
+      const statusValues = Array.isArray(maritalStatus)
+        ? maritalStatus
+        : maritalStatus.split(",").map((val) => val.toLowerCase());
+      filterConditions.maritalStatus = { $in: statusValues };
+    }
+
+    // Add age range filters
+    const currentYear = new Date().getFullYear();
+    let birthDateConditions = {};
+
+    if (minAge) {
+      const minBirthYear = currentYear - minAge;
+      birthDateConditions.$lte = new Date(
+        `${minBirthYear}-12-31T23:59:59.999Z`
+      );
+    }
+
+    if (maxAge) {
+      const maxBirthYear = currentYear - maxAge;
+      birthDateConditions.$gte = new Date(
+        `${maxBirthYear}-01-01T00:00:00.000Z`
+      );
+    }
+
+    if (Object.keys(birthDateConditions).length > 0) {
+      filterConditions.birthDate = birthDateConditions;
+    }
+
+    if (hasChildren) {
+      const childrenValues = Array.isArray(hasChildren)
+        ? hasChildren
+        : hasChildren.split(",").map((val) => val.toLowerCase());
+      filterConditions.hasChildren = { $in: childrenValues };
+    }
+
+    if (childrenDesire) {
+      const desireValues = Array.isArray(childrenDesire)
+        ? childrenDesire
+        : childrenDesire.split(",").map((val) => val.toLowerCase());
+      filterConditions.childrenDesire = { $in: desireValues };
+    }
+
+    if (educationLevel) {
+      const educationValues = Array.isArray(educationLevel)
+        ? educationLevel
+        : educationLevel.split(",").map((val) => val.toLowerCase());
+      filterConditions.educationLevel = { $in: educationValues };
+    }
+
+    if (profession) {
+      const professionValues = Array.isArray(profession)
+        ? profession
+        : profession.split(",").map((val) => val.toLowerCase());
+      filterConditions.profession = { $in: professionValues };
+    }
+
+    if (willingToRelocate !== undefined) {
+      // Convert string 'true'/'false' to boolean
+      filterConditions.willingToRelocate =
+        willingToRelocate === "true" || willingToRelocate === true;
+    }
+
+    // Execute search with validation and pagination
+    const matches = await User.find(filterConditions)
       .select("-password -managedMosques -approvedPhotosFor")
+      .skip(skip)
+      .limit(limit)
       .lean();
 
     // Add distance calculations to results
@@ -93,7 +183,8 @@ function getDistance([lon1, lat1], [lon2, lat2]) {
       Math.sin(dLon / 2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
-// @desc    Get matches for a male user by mosque ID
+
+// @desc    Get matches for a user by mosque ID
 // @route   GET /api/matches/mosque/:mosqueId
 // @access  Private
 exports.findMatchesByMosque = async (req, res) => {
