@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const Interest = require("../models/Interest");
 const User = require("../models/User"); // Import the User model
-
+const Notification = require("../models/Notification");
 // @desc    Add a female to a male user's interest list
 // @route   POST /api/interests/add
 // @access  Private
@@ -33,16 +33,33 @@ exports.addToInterestList = async (req, res) => {
     });
 
     await newInterest.save();
-    try {
-      const io = req.app.get("io");
-      if (io) {
-        io.to(femaleId).emit("interestReceived", { maleId });
-      } else {
-        console.warn("Socket.IO instance not found on app");
-      }
-    } catch (socketError) {
-      console.error("Socket emit failed:", socketError.message);
-      // You can optionally continue even if emit fails
+
+    // Create notification for the female user
+    // Create notification
+    const newNotification = new Notification({
+      userId: femaleId,
+      type: "interest",
+      fromUserId: maleId,
+      content: `${male.firstName} has shown interest in your profile`,
+      isRead: false,
+    });
+
+    await newNotification.save();
+
+    // Emit socket event
+    const io = req.app.get("io");
+    if (io) {
+      const apiNamespace = io.of("/api"); // Get the /api namespace
+      apiNamespace.to(femaleId.toString()).emit("newNotification", {
+        // Emit to the /api namespace
+        _id: newNotification._id,
+        userId: femaleId,
+        type: "interest",
+        fromUserId: maleId,
+        content: newNotification.content,
+        isRead: false,
+        createdAt: newNotification.createdAt,
+      });
     }
 
     res.status(201).json({ message: "Interest added successfully" });

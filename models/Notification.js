@@ -1,3 +1,4 @@
+// models/Notification.js
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
@@ -6,20 +7,21 @@ const NotificationSchema = new Schema({
   type: {
     type: String,
     enum: [
-      "photoRequest",
-      "photoAccessApproved",
-      "imamRequest",
-      "imamApproved",
-      "verificationRequest",
-      "verificationApproved",
-      "verificationRejected",
-      "message",
+      "interest", // When someone adds user to interest list
+      "photoRequest", // When someone requests to see unblurred photos
+      "photoAccessApproved", // When photo access is approved
+      "imamRequest", // When imam verification is requested
+      "imamApproved", // When imam verification is approved
+      "verificationRequest", // When profile verification is requested
+      "verificationApproved", // When profile is verified
+      "verificationRejected", // When verification is rejected
+      "message", // When a new message is received
     ],
     required: true,
   },
+  fromUserId: { type: Schema.Types.ObjectId, ref: "User" }, // Who caused this notification
   content: { type: String, required: true },
   isRead: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
 });
-
 module.exports = mongoose.model("Notification", NotificationSchema);

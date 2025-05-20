@@ -1,3 +1,4 @@
+// backend/server.js
 const express = require("express");
 const mongoose = require("mongoose");
 const passport = require("passport");
@@ -25,7 +26,10 @@ connectDB();
 
 // Initialize Socket.IO
 const server = require("http").createServer(app); // Create an HTTP server
-const io = socketService.init(server); // Pass the server to Socket.IO
+const io = socketService.init(server); // Initialize and get the io instance
+
+// Attach the io instance to the app for use in controllers
+app.set("io", io);
 
 // Express configuration
 app.use(cors()); // Enable Cross-Origin Resource Sharing

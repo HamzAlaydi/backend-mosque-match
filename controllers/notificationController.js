@@ -85,3 +85,18 @@ exports.deleteNotification = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+
+exports.getUnreadCount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const count = await Notification.countDocuments({
+      userId,
+      isRead: false,
+    });
+
+    res.json({ unreadCount: count });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};
