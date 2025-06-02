@@ -1,6 +1,113 @@
 const mongoose = require("mongoose");
 const Chat = require("../models/Chat");
 const User = require("../models/User");
+const socketService = require("../services/socketService");
+
+// @desc    Get all chats for a user
+// @route   GET /api/chats
+// @access  Private
+exports.getChatList = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Aggregate to get chat list with participant details and last message
+    const chatList = await Chat.aggregate([
+      {
+        $match: {
+          $or: [
+            { sender: new mongoose.Types.ObjectId(userId) },
+            { receiver: new mongoose.Types.ObjectId(userId) },
+          ],
+        },
+      },
+      {
+        $sort: { timestamp: -1 },
+      },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $eq: ["$sender", new mongoose.Types.ObjectId(userId)] },
+              "$receiver",
+              "$sender",
+            ],
+          },
+          lastMessage: { $first: "$$ROOT" },
+          unreadCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$receiver", new mongoose.Types.ObjectId(userId)] },
+                    { $eq: ["$isRead", false] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "otherUser",
+        },
+      },
+      {
+        $unwind: "$otherUser",
+      },
+      {
+        $project: {
+          _id: { $toString: "$_id" },
+          participants: [
+            {
+              _id: { $toString: "$otherUser._id" },
+              firstName: "$otherUser.firstName",
+              lastName: "$otherUser.lastName",
+              profilePicture: "$otherUser.profilePicture",
+              gender: "$otherUser.gender",
+              birthDate: "$otherUser.birthDate",
+              currentLocation: "$otherUser.currentLocation",
+            },
+          ],
+          lastMessage: {
+            _id: { $toString: "$lastMessage._id" },
+            sender: { $toString: "$lastMessage.sender" },
+            receiver: { $toString: "$lastMessage.receiver" },
+            text: "$lastMessage.text",
+            timestamp: "$lastMessage.timestamp",
+            isRead: "$lastMessage.isRead",
+          },
+          unreadCount: 1,
+        },
+      },
+      {
+        $sort: { "lastMessage.timestamp": -1 },
+      },
+    ]);
+
+    // Update user's online status
+    try {
+      if (socketService.getIO()) {
+        socketService.emitUserStatusUpdate(userId, {
+          status: "online",
+          lastSeen: new Date(),
+        });
+      }
+    } catch (socketError) {
+      console.error("Socket status update error:", socketError);
+    }
+
+    res.json(chatList);
+  } catch (err) {
+    console.error("Get chat list error:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 
 // @desc    Get chat messages between two users
 // @route   GET /api/chats/:userId
@@ -10,18 +117,58 @@ exports.getChatMessages = async (req, res) => {
     const userId1 = req.user.id;
     const userId2 = req.params.userId;
 
-    // Find chat messages between the two users, sorted by timestamp
+    // Validate userId2
+    if (!mongoose.Types.ObjectId.isValid(userId2)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    // Check if the other user exists
+    const otherUser = await User.findById(userId2);
+    if (!otherUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Get existing messages between the users
     const messages = await Chat.find({
       $or: [
         { sender: userId1, receiver: userId2 },
         { sender: userId2, receiver: userId1 },
       ],
-    }).sort({ timestamp: 1 });
+    })
+      .sort({ timestamp: 1 })
+      .populate("sender", "firstName lastName profilePicture")
+      .populate("receiver", "firstName lastName profilePicture");
+
+    // Mark messages as read and emit socket event
+    const unreadMessages = await Chat.find({
+      sender: userId2,
+      receiver: userId1,
+      isRead: false,
+    });
+
+    if (unreadMessages.length > 0) {
+      await Chat.updateMany(
+        { sender: userId2, receiver: userId1, isRead: false },
+        { isRead: true }
+      );
+
+      // Emit read receipt to the sender
+      try {
+        socketService.emitMessagesRead(userId2, {
+          readBy: userId1,
+          chatWith: userId2,
+          readCount: unreadMessages.length,
+          messageIds: unreadMessages.map((msg) => msg._id.toString()),
+        });
+      } catch (socketError) {
+        console.error("Socket emission error for messages read:", socketError);
+      }
+    }
 
     res.json(messages);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
+    console.error("Get chat messages error:", err.message);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -33,28 +180,129 @@ exports.sendMessage = async (req, res) => {
     const { receiverId, text } = req.body;
     const senderId = req.user.id;
 
+    console.log("Send message request:", { senderId, receiverId, text });
+
+    // Validation
+    if (!receiverId || !text || !text.trim()) {
+      return res
+        .status(400)
+        .json({ message: "Receiver ID and message text are required" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(receiverId)) {
+      return res.status(400).json({ message: "Invalid receiver ID" });
+    }
+
+    // Check if receiver exists
     const receiver = await User.findById(receiverId);
     if (!receiver) {
       return res.status(404).json({ message: "Receiver not found" });
     }
 
+    // Prevent sending message to self
+    if (senderId === receiverId) {
+      return res
+        .status(400)
+        .json({ message: "Cannot send message to yourself" });
+    }
+
     const newMessage = new Chat({
       sender: senderId,
       receiver: receiverId,
-      text,
-      timestamp: Date.now(),
+      text: text.trim(),
+      timestamp: new Date(),
+      isRead: false,
     });
 
     await newMessage.save();
 
-    // Emit the message to the receiver using Socket.IO
-    const io = req.app.get("io"); // Get the Socket.IO instance
-    io.to(receiverId).emit("message", newMessage); // Emit to a specific user (using their ID as room)
+    await newMessage.populate([
+      { path: "sender", select: "firstName lastName profilePicture" },
+      { path: "receiver", select: "firstName lastName profilePicture" },
+    ]);
+
+    console.log("Message saved and populated:", newMessage);
+
+    // Emit the message to both users using Socket.IO
+    try {
+      socketService.emitNewMessage(senderId, receiverId, newMessage);
+
+      const roomId = [senderId, receiverId].sort().join("_");
+      socketService.emitToRoom(roomId, "newMessage", newMessage);
+
+      console.log("Message emitted via socket to:", {
+        receiverId,
+        senderId,
+        roomId,
+      });
+    } catch (socketError) {
+      console.error("Socket emission error:", socketError);
+    }
 
     res.status(201).json(newMessage);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
+    console.error("Send message error:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// @desc    Mark messages as read
+// @route   PUT /api/chats/:userId/read
+// @access  Private
+exports.markMessagesAsRead = async (req, res) => {
+  try {
+    const currentUserId = req.user.id;
+    const otherUserId = req.params.userId;
+
+    if (!mongoose.Types.ObjectId.isValid(otherUserId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    // Get unread messages before marking them as read
+    const unreadMessages = await Chat.find({
+      sender: otherUserId,
+      receiver: currentUserId,
+      isRead: false,
+    });
+
+    // Mark all messages from otherUser to currentUser as read
+    const result = await Chat.updateMany(
+      {
+        sender: otherUserId,
+        receiver: currentUserId,
+        isRead: false,
+      },
+      { isRead: true }
+    );
+
+    // Emit read receipt to the other user with message IDs
+    try {
+      socketService.emitMessagesRead(otherUserId, {
+        readBy: currentUserId,
+        chatWith: otherUserId,
+        readCount: result.modifiedCount,
+        messageIds: unreadMessages.map((msg) => msg._id.toString()),
+        timestamp: new Date(),
+      });
+
+      // Also emit to chat room
+      const roomId = [currentUserId, otherUserId].sort().join("_");
+      socketService.emitToRoom(roomId, "messagesRead", {
+        readBy: currentUserId,
+        chatWith: otherUserId,
+        readCount: result.modifiedCount,
+      });
+    } catch (socketError) {
+      console.error("Socket emission error:", socketError);
+    }
+
+    res.json({
+      message: "Messages marked as read",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (err) {
+    console.error("Mark messages as read error:", err.message);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -66,19 +314,47 @@ exports.requestPhotoAccess = async (req, res) => {
     const senderId = req.user.id;
     const receiverId = req.params.userId;
 
+    if (!mongoose.Types.ObjectId.isValid(receiverId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
     const receiver = await User.findById(receiverId);
     if (!receiver) {
       return res.status(404).json({ message: "Receiver not found" });
     }
 
-    // Emit the photo request to the receiver using Socket.IO
-    const io = req.app.get("io");
-    io.to(receiverId).emit("photoRequest", { senderId });
+    const sender = await User.findById(senderId).select(
+      "firstName lastName profilePicture"
+    );
 
-    res.json({ message: "Photo access request sent" });
+    const photoRequestData = {
+      senderId,
+      senderInfo: sender,
+      receiverId,
+      message: `${sender.firstName} ${sender.lastName} has requested access to your photos`,
+      timestamp: new Date(),
+      type: "photo_request",
+    };
+
+    // Emit the photo request to the receiver using Socket.IO
+    try {
+      socketService.emitPhotoRequest(receiverId, photoRequestData);
+
+      // Also emit to receiver's personal room
+      socketService.emitToRoom(receiverId, "photoRequest", photoRequestData);
+
+      console.log("Photo request emitted:", photoRequestData);
+    } catch (socketError) {
+      console.error("Socket emission error:", socketError);
+    }
+
+    res.json({
+      message: "Photo access request sent",
+      data: photoRequestData,
+    });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
+    console.error("Request photo access error:", err.message);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -90,6 +366,10 @@ exports.approvePhotoAccess = async (req, res) => {
     const approverId = req.user.id;
     const requesterId = req.params.userId;
 
+    if (!mongoose.Types.ObjectId.isValid(requesterId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
     const requester = await User.findById(requesterId);
     if (!requester) {
       return res.status(404).json({ message: "Requester not found" });
@@ -98,16 +378,163 @@ exports.approvePhotoAccess = async (req, res) => {
     // Find the user who is approving the request
     const approvingUser = await User.findById(approverId);
 
-    approvingUser.approvedPhotosFor.push(requesterId); // Store the user ID of who they approved.
-    await approvingUser.save();
+    // Add to approved list if not already there
+    if (!approvingUser.approvedPhotosFor.includes(requesterId)) {
+      approvingUser.approvedPhotosFor.push(requesterId);
+      await approvingUser.save();
+    }
+
+    const approvalData = {
+      approverId,
+      approverInfo: {
+        _id: approvingUser._id,
+        firstName: approvingUser.firstName,
+        lastName: approvingUser.lastName,
+        profilePicture: approvingUser.profilePicture,
+      },
+      requesterId,
+      message: `${approvingUser.firstName} ${approvingUser.lastName} has approved your photo access request`,
+      timestamp: new Date(),
+      type: "photo_approval",
+    };
 
     // Emit the photo access approval to the requester using Socket.IO
-    const io = req.app.get("io");
-    io.to(requesterId).emit("photoAccessApproved", { approverId });
+    try {
+      socketService.emitPhotoAccessApproved(requesterId, approvalData);
 
-    res.json({ message: "Photo access approved" });
+      // Also emit to requester's personal room
+      socketService.emitToRoom(
+        requesterId,
+        "photoAccessApproved",
+        approvalData
+      );
+
+      console.log("Photo approval emitted:", approvalData);
+    } catch (socketError) {
+      console.error("Socket emission error:", socketError);
+    }
+
+    res.json({
+      message: "Photo access approved",
+      data: approvalData,
+    });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
+    console.error("Approve photo access error:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// @desc    Delete a message
+// @route   DELETE /api/chats/message/:messageId
+// @access  Private
+exports.deleteMessage = async (req, res) => {
+  try {
+    const messageId = req.params.messageId;
+    const userId = req.user.id;
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ message: "Invalid message ID" });
+    }
+
+    const message = await Chat.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    // Only allow sender to delete their own messages
+    if (message.sender.toString() !== userId) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to delete this message" });
+    }
+
+    const deletionData = {
+      messageId,
+      deletedBy: userId,
+      timestamp: new Date(),
+    };
+
+    await Chat.findByIdAndDelete(messageId);
+
+    // Emit message deletion to both users and chat room
+    try {
+      socketService.emitMessageDeleted(
+        message.receiver.toString(),
+        deletionData
+      );
+      socketService.emitMessageDeleted(message.sender.toString(), deletionData);
+
+      // Emit to chat room
+      const roomId = [message.sender.toString(), message.receiver.toString()]
+        .sort()
+        .join("_");
+      socketService.emitToRoom(roomId, "messageDeleted", deletionData);
+
+      console.log("Message deletion emitted:", deletionData);
+    } catch (socketError) {
+      console.error("Socket emission error:", socketError);
+    }
+
+    res.json({
+      message: "Message deleted successfully",
+      data: deletionData,
+    });
+  } catch (err) {
+    console.error("Delete message error:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// @desc    Get online users
+// @route   GET /api/chats/online-users
+// @access  Private
+exports.getOnlineUsers = async (req, res) => {
+  try {
+    const onlineUsers = socketService.getConnectedUsers();
+    res.json(onlineUsers);
+  } catch (err) {
+    console.error("Get online users error:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// @desc    Update typing status
+// @route   POST /api/chats/typing
+// @access  Private
+exports.updateTypingStatus = async (req, res) => {
+  try {
+    const { receiverId, isTyping } = req.body;
+    const senderId = req.user.id;
+
+    if (!mongoose.Types.ObjectId.isValid(receiverId)) {
+      return res.status(400).json({ message: "Invalid receiver ID" });
+    }
+
+    const sender = await User.findById(senderId).select(
+      "firstName lastName profilePicture"
+    );
+
+    const roomId = [senderId, receiverId].sort().join("_");
+
+    try {
+      socketService.emitTypingStatus(roomId, senderId, isTyping, sender);
+
+      // Also emit directly to receiver
+      const event = isTyping ? "userTyping" : "userStoppedTyping";
+      const typingData = {
+        userId: senderId,
+        userInfo: isTyping ? sender : undefined,
+        chatRoomId: roomId,
+      };
+
+      socketService.emitToRoom(receiverId, event, typingData);
+    } catch (socketError) {
+      console.error("Socket emission error:", socketError);
+    }
+
+    res.json({ message: "Typing status updated" });
+  } catch (err) {
+    console.error("Update typing status error:", err.message);
+    res.status(500).json({ message: "Server error" });
   }
 };
