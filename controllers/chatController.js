@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Chat = require("../models/Chat");
 const User = require("../models/User");
+const Notification = require("../models/Notification");
 const socketService = require("../services/socketService");
 
 // @desc    Get all chats for a user
@@ -199,6 +200,9 @@ exports.sendMessage = async (req, res) => {
       return res.status(404).json({ message: "Receiver not found" });
     }
 
+    // Get sender details for notification
+    const sender = await User.findById(senderId);
+
     // Prevent sending message to self
     if (senderId === receiverId) {
       return res
@@ -223,12 +227,42 @@ exports.sendMessage = async (req, res) => {
 
     console.log("Message saved and populated:", newMessage);
 
+    // Create notification for the receiver
+    const newNotification = new Notification({
+      userId: receiverId,
+      type: "message",
+      fromUserId: senderId,
+      content: `${sender.firstName} sent you a message: ${
+        text.trim().length > 50
+          ? text.trim().substring(0, 50) + "..."
+          : text.trim()
+      }`,
+      isRead: false,
+    });
+
+    await newNotification.save();
+
     // Emit the message to both users using Socket.IO
     try {
       socketService.emitNewMessage(senderId, receiverId, newMessage);
 
       const roomId = [senderId, receiverId].sort().join("_");
       socketService.emitToRoom(roomId, "newMessage", newMessage);
+
+      // Emit notification to receiver
+      const io = req.app.get("io");
+      if (io) {
+        const apiNamespace = io.of("/api");
+        apiNamespace.to(receiverId.toString()).emit("newNotification", {
+          _id: newNotification._id,
+          userId: receiverId,
+          type: "message",
+          fromUserId: senderId,
+          content: newNotification.content,
+          isRead: false,
+          createdAt: newNotification.createdAt,
+        });
+      }
 
       console.log("Message emitted via socket to:", {
         receiverId,
@@ -327,6 +361,17 @@ exports.requestPhotoAccess = async (req, res) => {
       "firstName lastName profilePicture"
     );
 
+    // Create notification for photo request
+    const newNotification = new Notification({
+      userId: receiverId,
+      type: "photo_request",
+      fromUserId: senderId,
+      content: `${sender.firstName} ${sender.lastName} has requested access to your photos`,
+      isRead: false,
+    });
+
+    await newNotification.save();
+
     const photoRequestData = {
       senderId,
       senderInfo: sender,
@@ -342,6 +387,21 @@ exports.requestPhotoAccess = async (req, res) => {
 
       // Also emit to receiver's personal room
       socketService.emitToRoom(receiverId, "photoRequest", photoRequestData);
+
+      // Emit notification
+      const io = req.app.get("io");
+      if (io) {
+        const apiNamespace = io.of("/api");
+        apiNamespace.to(receiverId.toString()).emit("newNotification", {
+          _id: newNotification._id,
+          userId: receiverId,
+          type: "photo_request",
+          fromUserId: senderId,
+          content: newNotification.content,
+          isRead: false,
+          createdAt: newNotification.createdAt,
+        });
+      }
 
       console.log("Photo request emitted:", photoRequestData);
     } catch (socketError) {
@@ -384,6 +444,17 @@ exports.approvePhotoAccess = async (req, res) => {
       await approvingUser.save();
     }
 
+    // Create notification for photo approval
+    const newNotification = new Notification({
+      userId: requesterId,
+      type: "photo_approval",
+      fromUserId: approverId,
+      content: `${approvingUser.firstName} ${approvingUser.lastName} has approved your photo access request`,
+      isRead: false,
+    });
+
+    await newNotification.save();
+
     const approvalData = {
       approverId,
       approverInfo: {
@@ -408,6 +479,21 @@ exports.approvePhotoAccess = async (req, res) => {
         "photoAccessApproved",
         approvalData
       );
+
+      // Emit notification
+      const io = req.app.get("io");
+      if (io) {
+        const apiNamespace = io.of("/api");
+        apiNamespace.to(requesterId.toString()).emit("newNotification", {
+          _id: newNotification._id,
+          userId: requesterId,
+          type: "photo_approval",
+          fromUserId: approverId,
+          content: newNotification.content,
+          isRead: false,
+          createdAt: newNotification.createdAt,
+        });
+      }
 
       console.log("Photo approval emitted:", approvalData);
     } catch (socketError) {
