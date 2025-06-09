@@ -28,8 +28,36 @@ const ChatSchema = new mongoose.Schema({
   },
   messageType: {
     type: String,
-    enum: ["text", "image", "photo_request", "photo_approval"],
+    enum: ["text", "image", "photo_request", "photo_response"],
     default: "text",
+  },
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {},
+  },
+  photoRequestData: {
+    requesterId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    status: {
+      type: String,
+      enum: ["pending", "accepted", "denied", "later"],
+    },
+  },
+  photoResponseData: {
+    originalRequesterId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    responderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    response: {
+      type: String,
+      enum: ["accept", "deny", "later"],
+    },
   },
   metadata: {
     type: mongoose.Schema.Types.Mixed,

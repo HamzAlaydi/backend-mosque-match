@@ -16,6 +16,8 @@ const NotificationSchema = new Schema({
       "verificationApproved", // When profile is verified
       "verificationRejected", // When verification is rejected
       "message", // When a new message is received
+      "photo_request",
+      "photo_response",
     ],
     required: true,
   },

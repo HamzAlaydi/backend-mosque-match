@@ -624,3 +624,230 @@ exports.updateTypingStatus = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+// @desc    Request photo access with chat message
+// @route   POST /api/chats/request-photo/:userId
+// @access  Private
+exports.requestPhotoAccessWithMessage = async (req, res) => {
+  try {
+    const senderId = req.user.id;
+    const receiverId = req.params.userId;
+
+    if (!mongoose.Types.ObjectId.isValid(receiverId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const receiver = await User.findById(receiverId);
+    if (!receiver) {
+      return res.status(404).json({ message: "Receiver not found" });
+    }
+
+    const sender = await User.findById(senderId).select(
+      "firstName lastName profilePicture"
+    );
+
+    // Create a special chat message for photo request
+    const photoRequestMessage = new Chat({
+      sender: senderId,
+      receiver: receiverId,
+      text: `${sender.firstName} has requested access to your profile photos. Please respond below.`,
+      timestamp: new Date(),
+      isRead: false,
+      messageType: "photo_request",
+      photoRequestData: {
+        requesterId: senderId,
+        status: "pending",
+      },
+    });
+
+    await photoRequestMessage.save();
+
+    await photoRequestMessage.populate([
+      { path: "sender", select: "firstName lastName profilePicture" },
+      { path: "receiver", select: "firstName lastName profilePicture" },
+    ]);
+
+    // Create notification
+    const newNotification = new Notification({
+      userId: receiverId,
+      type: "photo_request",
+      fromUserId: senderId,
+      content: `${sender.firstName} ${sender.lastName} has requested access to your photos`,
+      isRead: false,
+    });
+
+    await newNotification.save();
+
+    // Emit the message and notification via socket
+    try {
+      socketService.emitNewMessage(senderId, receiverId, photoRequestMessage);
+
+      const roomId = [senderId, receiverId].sort().join("_");
+      socketService.emitToRoom(roomId, "newMessage", photoRequestMessage);
+
+      // Emit notification
+      const io = req.app.get("io");
+      if (io) {
+        const apiNamespace = io.of("/api");
+        apiNamespace.to(receiverId.toString()).emit("newNotification", {
+          _id: newNotification._id,
+          userId: receiverId,
+          type: "photo_request",
+          fromUserId: senderId,
+          content: newNotification.content,
+          isRead: false,
+          createdAt: newNotification.createdAt,
+        });
+      }
+
+      console.log("Photo request message sent:", photoRequestMessage);
+    } catch (socketError) {
+      console.error("Socket emission error:", socketError);
+    }
+
+    res.status(201).json({
+      message: "Photo request sent successfully",
+      data: photoRequestMessage,
+    });
+  } catch (err) {
+    console.error("Request photo access error:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// @desc    Respond to photo request
+// @route   POST /api/chats/respond-photo/:userId
+// @access  Private
+exports.respondToPhotoRequest = async (req, res) => {
+  try {
+    const responderId = req.user.id;
+    const requesterId = req.params.userId;
+    const { response } = req.body; // 'accept', 'deny', 'later'
+
+    if (!["accept", "deny", "later"].includes(response)) {
+      return res
+        .status(400)
+        .json({
+          message: "Invalid response. Must be 'accept', 'deny', or 'later'",
+        });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(requesterId)) {
+      return res.status(400).json({ message: "Invalid requester ID" });
+    }
+
+    const requester = await User.findById(requesterId);
+    const responder = await User.findById(responderId);
+
+    if (!requester || !responder) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    let responseMessage = "";
+    let shouldUpdateUnblur = false;
+
+    switch (response) {
+      case "accept":
+        responseMessage = `${responder.firstName} has accepted your photo request. You can now view their photos.`;
+        shouldUpdateUnblur = true;
+        break;
+      case "deny":
+        responseMessage = `${responder.firstName} has declined your photo request.`;
+        break;
+      case "later":
+        responseMessage = `${responder.firstName} will respond to your photo request later.`;
+        break;
+    }
+
+    // Update unblurRequest if accepted
+    if (shouldUpdateUnblur) {
+      await User.findByIdAndUpdate(responderId, {
+        unblurRequest: true,
+        $addToSet: { approvedPhotosFor: requesterId },
+      });
+    }
+
+    // Create response message
+    const responseChat = new Chat({
+      sender: responderId,
+      receiver: requesterId,
+      text: responseMessage,
+      timestamp: new Date(),
+      isRead: false,
+      messageType: "photo_response",
+      photoResponseData: {
+        originalRequesterId: requesterId,
+        response: response,
+        responderId: responderId,
+      },
+    });
+
+    await responseChat.save();
+
+    await responseChat.populate([
+      { path: "sender", select: "firstName lastName profilePicture" },
+      { path: "receiver", select: "firstName lastName profilePicture" },
+    ]);
+
+    // Create notification
+    const newNotification = new Notification({
+      userId: requesterId,
+      type: "photo_response",
+      fromUserId: responderId,
+      content: responseMessage,
+      isRead: false,
+    });
+
+    await newNotification.save();
+
+    // Emit via socket
+    try {
+      socketService.emitNewMessage(responderId, requesterId, responseChat);
+
+      const roomId = [responderId, requesterId].sort().join("_");
+      socketService.emitToRoom(roomId, "newMessage", responseChat);
+
+      // If accepted, emit photo access granted event
+      if (shouldUpdateUnblur) {
+        socketService.emitToRoom(requesterId, "photoAccessGranted", {
+          grantedBy: responderId,
+          granterInfo: {
+            _id: responder._id,
+            firstName: responder.firstName,
+            lastName: responder.lastName,
+            profilePicture: responder.profilePicture,
+          },
+        });
+      }
+
+      // Emit notification
+      const io = req.app.get("io");
+      if (io) {
+        const apiNamespace = io.of("/api");
+        apiNamespace.to(requesterId.toString()).emit("newNotification", {
+          _id: newNotification._id,
+          userId: requesterId,
+          type: "photo_response",
+          fromUserId: responderId,
+          content: newNotification.content,
+          isRead: false,
+          createdAt: newNotification.createdAt,
+        });
+      }
+
+      console.log(`Photo request ${response} response sent:`, responseChat);
+    } catch (socketError) {
+      console.error("Socket emission error:", socketError);
+    }
+
+    res.json({
+      message: `Photo request ${response} response sent successfully`,
+      data: responseChat,
+      unblurUpdated: shouldUpdateUnblur,
+    });
+  } catch (err) {
+    console.error("Respond to photo request error:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};

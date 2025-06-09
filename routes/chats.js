@@ -9,6 +9,8 @@ const {
   deleteMessage,
   requestPhotoAccess,
   approvePhotoAccess,
+  requestPhotoAccessWithMessage,
+  respondToPhotoRequest, 
   getOnlineUsers,
   updateTypingStatus,
 } = require("../controllers/chatController");
@@ -39,12 +41,17 @@ router.put("/:userId/read", auth, markMessagesAsRead);
 router.delete("/message/:messageId", auth, deleteMessage);
 
 // @route   POST /api/chats/request-photo/:userId
-// @desc    Request photo access from another user
+// @desc    Request photo access with chat message (Updated)
 // @access  Private
-router.post("/request-photo/:userId", auth, requestPhotoAccess);
+router.post("/request-photo/:userId", auth, requestPhotoAccessWithMessage);
+
+// @route   POST /api/chats/respond-photo/:userId
+// @desc    Respond to photo request (New)
+// @access  Private
+router.post("/respond-photo/:userId", auth, respondToPhotoRequest);
 
 // @route   POST /api/chats/approve-photo/:userId
-// @desc    Approve photo access request
+// @desc    Approve photo access request (Legacy - keep for compatibility)
 // @access  Private
 router.post("/approve-photo/:userId", auth, approvePhotoAccess);
 
