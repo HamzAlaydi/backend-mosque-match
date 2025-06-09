@@ -138,6 +138,9 @@ const UserSchema = new Schema(
         },
       },
     ],
+    // Block functionality
+    blockedUsers: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    blockedBy: [{ type: Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );

@@ -17,6 +17,7 @@ const matchRoutes = require("./routes/matches");
 const interestRoutes = require("./routes/interests");
 const imamRoutes = require("./routes/imams");
 const notificationRoutes = require("./routes/notifications");
+const blocksRoutes = require("./routes/blocks");
 
 const app = express();
 app.use(express.json()); // For parsing application/json
@@ -48,6 +49,7 @@ app.use("/api/matches", matchRoutes);
 app.use("/api/interests", interestRoutes);
 app.use("/api/imams", imamRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/blocks", blocksRoutes);
 
 // Error handling middleware (must be after route definitions)
 app.use(errorHandler);

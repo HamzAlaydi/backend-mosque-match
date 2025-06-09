@@ -73,6 +73,7 @@ exports.getChatList = async (req, res) => {
               gender: "$otherUser.gender",
               birthDate: "$otherUser.birthDate",
               currentLocation: "$otherUser.currentLocation",
+              approvedPhotosFor: "$otherUser.approvedPhotosFor", // Add this line
             },
           ],
           lastMessage: {

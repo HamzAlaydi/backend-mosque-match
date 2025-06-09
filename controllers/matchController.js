@@ -69,6 +69,13 @@ exports.findMatches = async (req, res) => {
     const filterConditions = {
       role: targetRole,
       $or: searchConditions,
+      // Exclude blocked users and users who blocked current user
+      _id: {
+        $nin: [
+          ...(currentUser.blockedUsers || []),
+          ...(currentUser.blockedBy || []),
+        ],
+      },
     };
 
     // Add demographic filters if provided
@@ -145,7 +152,7 @@ exports.findMatches = async (req, res) => {
 
     // Execute search with validation and pagination
     const matches = await User.find(filterConditions)
-      .select("-password -managedMosques")
+      .select("-password -managedMosques -blockedUsers -blockedBy")
       .skip(skip)
       .limit(limit)
       .lean();
@@ -209,10 +216,17 @@ exports.findMatchesByMosque = async (req, res) => {
     }
 
     // Find users of the opposite gender associated with the specified mosque ID
+    // Exclude blocked users
     const matches = await User.find({
       "attachedMosques.id": mosqueId,
       role: targetRole,
-    }).select("-password");
+      _id: {
+        $nin: [
+          ...(currentUser.blockedUsers || []),
+          ...(currentUser.blockedBy || []),
+        ],
+      },
+    }).select("-password -blockedUsers -blockedBy");
 
     res.json(matches);
   } catch (err) {
