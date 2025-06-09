@@ -145,7 +145,7 @@ exports.findMatches = async (req, res) => {
 
     // Execute search with validation and pagination
     const matches = await User.find(filterConditions)
-      .select("-password -managedMosques -approvedPhotosFor")
+      .select("-password -managedMosques")
       .skip(skip)
       .limit(limit)
       .lean();

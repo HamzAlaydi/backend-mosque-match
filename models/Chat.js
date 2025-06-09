@@ -31,10 +31,6 @@ const ChatSchema = new mongoose.Schema({
     enum: ["text", "image", "photo_request", "photo_response"],
     default: "text",
   },
-  metadata: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {},
-  },
   photoRequestData: {
     requesterId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -43,12 +39,17 @@ const ChatSchema = new mongoose.Schema({
     status: {
       type: String,
       enum: ["pending", "accepted", "denied", "later"],
+      default: "pending",
     },
   },
   photoResponseData: {
     originalRequesterId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+    },
+    originalMessageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Chat", // Reference to the original photo_request message
     },
     responderId: {
       type: mongoose.Schema.Types.ObjectId,

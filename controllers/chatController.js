@@ -625,7 +625,6 @@ exports.updateTypingStatus = async (req, res) => {
   }
 };
 
-
 // @desc    Request photo access with chat message
 // @route   POST /api/chats/request-photo/:userId
 // @access  Private
@@ -723,18 +722,24 @@ exports.respondToPhotoRequest = async (req, res) => {
   try {
     const responderId = req.user.id;
     const requesterId = req.params.userId;
-    const { response } = req.body; // 'accept', 'deny', 'later'
+    const { response, originalMessageId } = req.body; // Accept originalMessageId from frontend
 
     if (!["accept", "deny", "later"].includes(response)) {
-      return res
-        .status(400)
-        .json({
-          message: "Invalid response. Must be 'accept', 'deny', or 'later'",
-        });
+      return res.status(400).json({
+        message: "Invalid response. Must be 'accept', 'deny', or 'later'",
+      });
     }
 
     if (!mongoose.Types.ObjectId.isValid(requesterId)) {
       return res.status(400).json({ message: "Invalid requester ID" });
+    }
+
+    // Validate originalMessageId if provided
+    if (
+      originalMessageId &&
+      !mongoose.Types.ObjectId.isValid(originalMessageId)
+    ) {
+      return res.status(400).json({ message: "Invalid original message ID" });
     }
 
     const requester = await User.findById(requesterId);
@@ -745,12 +750,12 @@ exports.respondToPhotoRequest = async (req, res) => {
     }
 
     let responseMessage = "";
-    let shouldUpdateUnblur = false;
+    let shouldUpdateAccess = false;
 
     switch (response) {
       case "accept":
         responseMessage = `${responder.firstName} has accepted your photo request. You can now view their photos.`;
-        shouldUpdateUnblur = true;
+        shouldUpdateAccess = true;
         break;
       case "deny":
         responseMessage = `${responder.firstName} has declined your photo request.`;
@@ -760,10 +765,9 @@ exports.respondToPhotoRequest = async (req, res) => {
         break;
     }
 
-    // Update unblurRequest if accepted
-    if (shouldUpdateUnblur) {
+    // Update approvedPhotosFor array if accepted
+    if (shouldUpdateAccess) {
       await User.findByIdAndUpdate(responderId, {
-        unblurRequest: true,
         $addToSet: { approvedPhotosFor: requesterId },
       });
     }
@@ -778,6 +782,7 @@ exports.respondToPhotoRequest = async (req, res) => {
       messageType: "photo_response",
       photoResponseData: {
         originalRequesterId: requesterId,
+        originalMessageId: originalMessageId, // Store the original message ID
         response: response,
         responderId: responderId,
       },
@@ -809,7 +814,7 @@ exports.respondToPhotoRequest = async (req, res) => {
       socketService.emitToRoom(roomId, "newMessage", responseChat);
 
       // If accepted, emit photo access granted event
-      if (shouldUpdateUnblur) {
+      if (shouldUpdateAccess) {
         socketService.emitToRoom(requesterId, "photoAccessGranted", {
           grantedBy: responderId,
           granterInfo: {
@@ -841,10 +846,13 @@ exports.respondToPhotoRequest = async (req, res) => {
       console.error("Socket emission error:", socketError);
     }
 
+    // Return the data structure expected by frontend
     res.json({
       message: `Photo request ${response} response sent successfully`,
-      data: responseChat,
-      unblurUpdated: shouldUpdateUnblur,
+      data: responseChat, // The new photo_response message
+      originalMessageId: originalMessageId, // The original request message ID
+      responseType: response, // The response type (accept/deny/later)
+      accessGranted: shouldUpdateAccess,
     });
   } catch (err) {
     console.error("Respond to photo request error:", err.message);
