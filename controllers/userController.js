@@ -19,6 +19,29 @@ exports.getCurrentUser = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// @desc    Get multiple users by their IDs
+// @route   POST /api/users/details
+// @access  Private
+exports.getUsersByIds = async (req, res) => {
+  const { userIds } = req.body;
+
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return res
+      .status(400)
+      .json({ message: "userIds must be a non-empty array" });
+  }
+
+  try {
+    const users = await User.find({ _id: { $in: userIds } }).select(
+      "-password"
+    );
+    res.json(users);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 // @desc    Update user profile
 // @route   PUT /api/users/profile
 // @access  Private
@@ -280,5 +303,82 @@ exports.updateMosqueAttachments = async (req, res) => {
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
+  }
+};
+
+// @desc    Remove wali access for a user
+// @route   DELETE /api/users/wali-access/:id
+// @access  Private (e.g., only for superadmin or the user themselves under specific conditions)
+exports.removeWaliAccess = async (req, res) => {
+  try {
+    const userIdToRemoveFromApprovedList = req.params.id; // This is the ID of the user whose wali access is being revoked for the approver.
+    const approverId = req.user.id; // The ID of the currently authenticated user (the one logged in, who is an imam/superadmin).
+
+    const approver = await User.findById(approverId);
+
+    if (!approver) {
+      return res.status(404).json({ message: "Approver user not found." });
+    }
+
+    // Check if the userIdToRemoveFromApprovedList actually exists in the approver's approvedWaliFor array
+    const index = approver.approvedWaliFor.indexOf(
+      userIdToRemoveFromApprovedList
+    );
+
+    if (index === -1) {
+      return res.status(404).json({
+        message: "User ID not found in approver's approved wali list.",
+      });
+    }
+
+    // Remove the userId from the approvedWaliFor array
+    approver.approvedWaliFor.splice(index, 1); // Remove 1 element at the found index
+
+    await approver.save();
+
+    res.json({
+      message: `User ID ${userIdToRemoveFromApprovedList} removed from approvedWaliFor list of ${approver.firstName}.`,
+    });
+  } catch (error) {
+    console.error("Error removing user from approvedWaliFor list:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.removePhotoAccess = async (req, res) => {
+  try {
+    const userIdToRemoveFromApprovedList = req.params.id; // This is the ID of the user whose photo access is being revoked for the approver.
+    const approverId = req.user.id; // The ID of the currently authenticated user (the one logged in, who is an imam/superadmin).
+
+    const approver = await User.findById(approverId);
+
+    if (!approver) {
+      return res.status(404).json({ message: "Approver user not found." });
+    }
+
+    // Check if the userIdToRemoveFromApprovedList actually exists in the approver's approvedPhotosFor array
+    const index = approver.approvedPhotosFor.indexOf(
+      userIdToRemoveFromApprovedList
+    );
+
+    if (index === -1) {
+      return res
+        .status(404)
+        .json({
+          message: "User ID not found in approver's approved photos list.",
+        });
+    }
+
+    // Remove the userId from the approvedPhotosFor array
+    approver.approvedPhotosFor.splice(index, 1); // Remove 1 element at the found index
+
+    await approver.save();
+
+    res.json({
+      message: `User ID ${userIdToRemoveFromApprovedList} removed from approvedPhotosFor list of ${approver.firstName}.`,
+    });
+  } catch (error) {
+    console.error("Error removing user from approvedPhotosFor list:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };

@@ -8,12 +8,16 @@ const {
   approveUnblur,
   getUserById,
   getCurrentUser,
+  getUsersByIds,
+  removeWaliAccess,
+  removePhotoAccess,
 } = require("../controllers/userController");
 const roles = require("../middleware/roles");
 const upload = require("../middleware/upload");
 const { userUpdateValidation } = require("../utils/validation");
 
 router.get("/me", auth, getCurrentUser);
+router.post("/details", auth, getUsersByIds);
 // @route   patch /api/users/profile
 // @desc    Update user profile
 // @access  Private
@@ -47,5 +51,6 @@ router.post(
 // @desc    Get user profile by ID
 // @access  Private
 router.get("/:id", auth, getUserById);
-
+router.delete("/wali-access/:id", auth, removeWaliAccess);
+router.delete("/photo-access/:id", auth, removePhotoAccess);
 module.exports = router;
