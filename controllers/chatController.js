@@ -859,3 +859,223 @@ exports.respondToPhotoRequest = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// @desc    Request wali information access
+// @route   POST /api/chats/request-wali/:userId
+// @access  Private
+exports.requestWaliAccessWithMessage = async (req, res) => {
+  try {
+    const senderId = req.user.id;
+    const receiverId = req.params.userId;
+
+    if (!mongoose.Types.ObjectId.isValid(receiverId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const receiver = await User.findById(receiverId);
+    if (!receiver) {
+      return res.status(404).json({ message: "Receiver not found" });
+    }
+
+    const sender = await User.findById(senderId).select(
+      "firstName lastName profilePicture"
+    );
+
+    // Create a special chat message for wali request
+    const waliRequestMessage = new Chat({
+      sender: senderId,
+      receiver: receiverId,
+      text: `${sender.firstName} has requested access to your wali information. Please respond below.`,
+      timestamp: new Date(),
+      isRead: false,
+      messageType: "wali_request",
+      waliRequestData: {
+        requesterId: senderId,
+        status: "pending",
+      },
+    });
+
+    await waliRequestMessage.save();
+
+    await waliRequestMessage.populate([
+      { path: "sender", select: "firstName lastName profilePicture" },
+      { path: "receiver", select: "firstName lastName profilePicture" },
+    ]);
+
+    // Create notification
+    const newNotification = new Notification({
+      userId: receiverId,
+      type: "wali_request",
+      fromUserId: senderId,
+      content: `${sender.firstName} ${sender.lastName} has requested access to your wali information`,
+      isRead: false,
+    });
+
+    await newNotification.save();
+
+    // Emit via socket
+    try {
+      socketService.emitNewMessage(senderId, receiverId, waliRequestMessage);
+
+      const roomId = [senderId, receiverId].sort().join("_");
+      socketService.emitToRoom(roomId, "newMessage", waliRequestMessage);
+
+      // Emit notification
+      const io = req.app.get("io");
+      if (io) {
+        const apiNamespace = io.of("/api");
+        apiNamespace.to(receiverId.toString()).emit("newNotification", {
+          _id: newNotification._id,
+          userId: receiverId,
+          type: "wali_request",
+          fromUserId: senderId,
+          content: newNotification.content,
+          isRead: false,
+          createdAt: newNotification.createdAt,
+        });
+      }
+
+      console.log("Wali request message sent:", waliRequestMessage);
+    } catch (socketError) {
+      console.error("Socket emission error:", socketError);
+    }
+
+    res.status(201).json({
+      message: "Wali request sent successfully",
+      data: waliRequestMessage,
+    });
+  } catch (err) {
+    console.error("Request wali access error:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// @desc    Respond to wali request
+// @route   POST /api/chats/respond-wali/:userId
+// @access  Private
+exports.respondToWaliRequest = async (req, res) => {
+  try {
+    const responderId = req.user.id;
+    const requesterId = req.params.userId;
+    const { response, originalMessageId } = req.body;
+
+    if (!["accept", "deny", "later"].includes(response)) {
+      return res.status(400).json({
+        message: "Invalid response. Must be 'accept', 'deny', or 'later'",
+      });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(requesterId)) {
+      return res.status(400).json({ message: "Invalid requester ID" });
+    }
+
+    if (
+      originalMessageId &&
+      !mongoose.Types.ObjectId.isValid(originalMessageId)
+    ) {
+      return res.status(400).json({ message: "Invalid original message ID" });
+    }
+
+    const requester = await User.findById(requesterId);
+    const responder = await User.findById(responderId);
+
+    if (!requester || !responder) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    let responseMessage = "";
+    let shouldUpdateAccess = false;
+
+    switch (response) {
+      case "accept":
+        responseMessage = `${responder.firstName} has accepted your wali information request. You can now view their wali details.`;
+        shouldUpdateAccess = true;
+        break;
+      case "deny":
+        responseMessage = `${responder.firstName} has declined your wali information request.`;
+        break;
+      case "later":
+        responseMessage = `${responder.firstName} will respond to your wali information request later.`;
+        break;
+    }
+
+    // Update approvedWaliFor array if accepted
+    if (shouldUpdateAccess) {
+      await User.findByIdAndUpdate(responderId, {
+        $addToSet: { approvedWaliFor: requesterId },
+      });
+    }
+
+    // Create response message
+    const responseChat = new Chat({
+      sender: responderId,
+      receiver: requesterId,
+      text: responseMessage,
+      timestamp: new Date(),
+      isRead: false,
+      messageType: "wali_response",
+      waliResponseData: {
+        originalRequesterId: requesterId,
+        originalMessageId: originalMessageId,
+        response: response,
+        responderId: responderId,
+      },
+    });
+
+    await responseChat.save();
+
+    await responseChat.populate([
+      { path: "sender", select: "firstName lastName profilePicture" },
+      { path: "receiver", select: "firstName lastName profilePicture" },
+    ]);
+
+    // Create notification
+    const newNotification = new Notification({
+      userId: requesterId,
+      type: "wali_response",
+      fromUserId: responderId,
+      content: responseMessage,
+      isRead: false,
+    });
+
+    await newNotification.save();
+
+    // Emit via socket
+    try {
+      socketService.emitNewMessage(responderId, requesterId, responseChat);
+
+      const roomId = [responderId, requesterId].sort().join("_");
+      socketService.emitToRoom(roomId, "newMessage", responseChat);
+
+      // Emit notification
+      const io = req.app.get("io");
+      if (io) {
+        const apiNamespace = io.of("/api");
+        apiNamespace.to(requesterId.toString()).emit("newNotification", {
+          _id: newNotification._id,
+          userId: requesterId,
+          type: "wali_response",
+          fromUserId: responderId,
+          content: newNotification.content,
+          isRead: false,
+          createdAt: newNotification.createdAt,
+        });
+      }
+
+      console.log(`Wali request ${response} response sent:`, responseChat);
+    } catch (socketError) {
+      console.error("Socket emission error:", socketError);
+    }
+
+    res.json({
+      message: `Wali request ${response} response sent successfully`,
+      data: responseChat,
+      originalMessageId: originalMessageId,
+      responseType: response,
+      accessGranted: shouldUpdateAccess,
+    });
+  } catch (err) {
+    console.error("Respond to wali request error:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};

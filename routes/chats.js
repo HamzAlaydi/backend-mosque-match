@@ -10,9 +10,11 @@ const {
   requestPhotoAccess,
   approvePhotoAccess,
   requestPhotoAccessWithMessage,
-  respondToPhotoRequest, 
+  respondToPhotoRequest,
   getOnlineUsers,
   updateTypingStatus,
+  requestWaliAccessWithMessage,
+  respondToWaliRequest,
 } = require("../controllers/chatController");
 
 // @route   GET /api/chats
@@ -49,6 +51,8 @@ router.post("/request-photo/:userId", auth, requestPhotoAccessWithMessage);
 // @desc    Respond to photo request (New)
 // @access  Private
 router.post("/respond-photo/:userId", auth, respondToPhotoRequest);
+router.post("/request-wali/:userId", auth, requestWaliAccessWithMessage);
+router.post("/respond-wali/:userId", auth, respondToWaliRequest);
 
 // @route   POST /api/chats/approve-photo/:userId
 // @desc    Approve photo access request (Legacy - keep for compatibility)

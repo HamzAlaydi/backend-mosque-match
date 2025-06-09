@@ -28,7 +28,14 @@ const ChatSchema = new mongoose.Schema({
   },
   messageType: {
     type: String,
-    enum: ["text", "image", "photo_request", "photo_response"],
+    enum: [
+      "text",
+      "image",
+      "photo_request",
+      "photo_response",
+      "wali_request",
+      "wali_response",
+    ],
     default: "text",
   },
   photoRequestData: {
@@ -50,6 +57,35 @@ const ChatSchema = new mongoose.Schema({
     originalMessageId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Chat", // Reference to the original photo_request message
+    },
+    responderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    response: {
+      type: String,
+      enum: ["accept", "deny", "later"],
+    },
+  },
+  waliRequestData: {
+    requesterId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    status: {
+      type: String,
+      enum: ["pending", "accepted", "denied", "later"],
+      default: "pending",
+    },
+  },
+  waliResponseData: {
+    originalRequesterId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    originalMessageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Chat",
     },
     responderId: {
       type: mongoose.Schema.Types.ObjectId,

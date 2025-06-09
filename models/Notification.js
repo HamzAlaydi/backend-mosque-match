@@ -18,6 +18,8 @@ const NotificationSchema = new Schema({
       "message", // When a new message is received
       "photo_request",
       "photo_response",
+      "wali_request",
+      "wali_response",
     ],
     required: true,
   },

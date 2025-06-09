@@ -112,7 +112,12 @@ const UserSchema = new Schema(
     managedMosques: [String],
     messageToCommunity: String,
     approvedPhotosFor: [{ type: Schema.Types.ObjectId, ref: "User" }],
-
+    approvedWaliFor: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     // Attached Mosques
     distance: { type: Number, default: 6 },
     attachedMosques: [
