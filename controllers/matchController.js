@@ -234,3 +234,27 @@ exports.findMatchesByMosque = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+
+exports.saveMosqueSelection = async (req, res) => {
+  try {
+    const { selectedMosques } = req.body;
+    const userId = req.user.id;
+
+    await User.findByIdAndUpdate(userId, {
+      savedMosqueSelection: selectedMosques,
+    });
+
+    res.json({ message: "Mosque selection saved successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+exports.loadMosqueSelection = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    res.json({ savedMosques: user.savedMosqueSelection || [] });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};

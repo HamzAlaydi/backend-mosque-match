@@ -138,6 +138,25 @@ const UserSchema = new Schema(
         },
       },
     ],
+    // Add this field to your existing UserSchema
+    savedMosqueSelection: [
+      {
+        id: { type: Number, required: false },
+        name: String,
+        address: String,
+        location: {
+          type: {
+            type: String,
+            enum: ["Point"],
+            default: "Point",
+          },
+          coordinates: {
+            type: [Number], // [longitude, latitude]
+            required: true,
+          },
+        },
+      },
+    ],
     // Block functionality
     blockedUsers: [{ type: Schema.Types.ObjectId, ref: "User" }],
     blockedBy: [{ type: Schema.Types.ObjectId, ref: "User" }],
