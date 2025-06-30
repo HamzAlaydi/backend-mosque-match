@@ -9,40 +9,69 @@ const { createMosqueValidation } = require("../utils/validation");
 // @access  Public
 exports.getAllMosques = async (req, res) => {
   try {
-    const mosques = await Mosque.find();
-    res.json(mosques);
+    const mosques = await Mosque.find().select("-imams -imamRequests -females");
+
+    // Transform to match frontend format
+    const formattedMosques = mosques.map((mosque) => ({
+      id: mosque.externalId || mosque._id,
+      name: mosque.name,
+      location: {
+        lat: mosque.location.coordinates[1], // latitude
+        lng: mosque.location.coordinates[0], // longitude
+      },
+      address: mosque.address,
+      rating: mosque.rating,
+      reviewCount: mosque.reviewCount,
+    }));
+
+    res.json(formattedMosques);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
   }
 };
 
-// @desc    Create a new mosque (Imam or Super Admin)
-// @route   POST /api/mosques
-// @access  Private
-exports.createMosque = async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
+// @desc    Get mosques by location (within radius)
+// @route   GET /api/mosques/nearby
+// @access  Public
+exports.getMosquesNearby = async (req, res) => {
   try {
-    const { name, location, address } = req.body;
+    const { lat, lng, radius = 10 } = req.query; // radius in miles
 
-    // Check if mosque exists
-    let mosque = await Mosque.findOne({ name });
-    if (mosque) {
-      return res.status(400).json({ message: "Mosque already exists" });
+    if (!lat || !lng) {
+      return res
+        .status(400)
+        .json({ message: "Latitude and longitude are required" });
     }
 
-    // Create new mosque
-    mosque = new Mosque({
-      name,
-      location, // { type: 'Point', coordinates: [longitude, latitude] }
-      address,
-    });
+    const radiusInMeters = radius * 1609.34; // Convert miles to meters
 
-    await mosque.save();
-    res.status(201).json(mosque);
+    const mosques = await Mosque.find({
+      location: {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: [parseFloat(lng), parseFloat(lat)],
+          },
+          $maxDistance: radiusInMeters,
+        },
+      },
+    }).select("-imams -imamRequests -females");
+
+    // Transform to match frontend format
+    const formattedMosques = mosques.map((mosque) => ({
+      id: mosque.externalId || mosque._id,
+      name: mosque.name,
+      location: {
+        lat: mosque.location.coordinates[1],
+        lng: mosque.location.coordinates[0],
+      },
+      address: mosque.address,
+      rating: mosque.rating,
+      reviewCount: mosque.reviewCount,
+    }));
+
+    res.json(formattedMosques);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -54,11 +83,61 @@ exports.createMosque = async (req, res) => {
 // @access  Public
 exports.getMosqueById = async (req, res) => {
   try {
-    const mosque = await Mosque.findById(req.params.id);
+    const mosque = await Mosque.findById(req.params.id)
+      .populate("imams", "firstName lastName email")
+      .populate("females", "firstName lastName email");
+
     if (!mosque) {
       return res.status(404).json({ message: "Mosque not found" });
     }
+
     res.json(mosque);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};
+
+// @desc    Create a new mosque
+// @route   POST /api/mosques
+// @access  Private (Super Admin only)
+exports.createMosque = async (req, res) => {
+  try {
+    const { name, address, location, externalId } = req.body;
+
+    // Check if mosque already exists
+    const existingMosque = await Mosque.findOne({
+      $or: [{ name }, { externalId: externalId }],
+    });
+
+    if (existingMosque) {
+      return res.status(400).json({ message: "Mosque already exists" });
+    }
+
+    const mosque = new Mosque({
+      name,
+      address,
+      externalId,
+      location: {
+        type: "Point",
+        coordinates: [location.lng, location.lat],
+      },
+    });
+
+    await mosque.save();
+
+    res.status(201).json({
+      message: "Mosque created successfully",
+      mosque: {
+        id: mosque._id,
+        name: mosque.name,
+        address: mosque.address,
+        location: {
+          lat: mosque.location.coordinates[1],
+          lng: mosque.location.coordinates[0],
+        },
+      },
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");

@@ -18,6 +18,8 @@ const interestRoutes = require("./routes/interests");
 const imamRoutes = require("./routes/imams");
 const notificationRoutes = require("./routes/notifications");
 const blocksRoutes = require("./routes/blocks");
+const superAdminRoutes = require("./routes/superadmin");
+const mosqueAttachmentRoutes = require("./routes/mosqueAttachments");
 
 const app = express();
 app.use(express.json()); // For parsing application/json
@@ -50,6 +52,8 @@ app.use("/api/interests", interestRoutes);
 app.use("/api/imams", imamRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/blocks", blocksRoutes);
+app.use("/api/superadmin", superAdminRoutes);
+app.use("/api/mosque-attachments", mosqueAttachmentRoutes);
 
 // Error handling middleware (must be after route definitions)
 app.use(errorHandler);

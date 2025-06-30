@@ -118,6 +118,13 @@ const UserSchema = new Schema(
         ref: "User",
       },
     ],
+    // Imam approval status
+    imamApprovalStatus: {
+      type: String,
+      enum: ["pending", "approved", "denied"],
+      default: "pending",
+    },
+    deniedReason: String,
     // Attached Mosques
     distance: { type: Number, default: 6 },
     attachedMosques: [

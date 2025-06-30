@@ -136,6 +136,7 @@ exports.registerUser = async (req, res) => {
       userData.managedMosques =
         req.body.attachedMosques?.map((m) => m.id) || [];
       userData.messageToCommunity = req.body.message;
+      userData.imamApprovalStatus = "pending"; // Set initial approval status
     }
 
     const user = new User(userData);
@@ -151,6 +152,177 @@ exports.registerUser = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// @desc    Register a new imam
+// @route   POST /api/auth/imam-signup
+// @access  Public
+exports.registerImam = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty())
+    return res.status(400).json({ errors: errors.array() });
+
+  try {
+    // Check if email already exists
+    if (await User.findOne({ email: req.body.email }))
+      return res.status(400).json({ message: "Email already exists" });
+
+    // Parse languages if it's a JSON string
+    let parsedLanguages = req.body.languages;
+    if (typeof req.body.languages === "string") {
+      try {
+        parsedLanguages = JSON.parse(req.body.languages);
+      } catch (e) {
+        parsedLanguages = [req.body.languages];
+      }
+    }
+
+    // Parse attached mosques if it's a JSON string
+    let parsedAttachedMosques = req.body.attachedMosques;
+    if (typeof req.body.attachedMosques === "string") {
+      try {
+        parsedAttachedMosques = JSON.parse(req.body.attachedMosques);
+      } catch (e) {
+        parsedAttachedMosques = [];
+      }
+    }
+
+    // Parse mosque details if it's a JSON string
+    let parsedMosqueDetails = req.body.mosqueDetails;
+    if (typeof req.body.mosqueDetails === "string") {
+      try {
+        parsedMosqueDetails = JSON.parse(req.body.mosqueDetails);
+      } catch (e) {
+        parsedMosqueDetails = {};
+      }
+    }
+
+    // Use imamName if available, otherwise use firstName + lastName
+    const imamName =
+      req.body.imamName ||
+      `${req.body.firstName || ""} ${req.body.lastName || ""}`.trim();
+    const nameParts = imamName.trim().split(" ");
+    const firstName = nameParts[0] || req.body.firstName || "";
+    const lastName = nameParts.slice(1).join(" ") || req.body.lastName || "";
+
+    // Create user data for imam
+    const userData = {
+      firstName,
+      lastName,
+      email: req.body.email,
+      password: req.body.password,
+      role: "imam",
+      gender: req.body.gender || "male", // Default to male for imams
+      phone: req.body.phone,
+      currentLocation:
+        req.body.currentLocation || req.body.mosqueAddress || "Not specified", // Handle case where mosqueAddress is not provided
+      messageToCommunity: req.body.message || "No message provided",
+      languages: parsedLanguages || [],
+      attachedMosques: parsedAttachedMosques || [],
+      distance: req.body.distance || 6,
+      imamApprovalStatus: "pending", // Set initial approval status
+      terms: true, // Imam signup always accepts terms
+      isEmailVerified: false,
+
+      // Additional fields from the form
+      educationLevel: req.body.educationLevel,
+      profession: req.body.profession,
+      jobTitle: req.body.jobTitle,
+      firstLanguage: req.body.firstLanguage,
+      secondLanguage: req.body.secondLanguage,
+      religiousness: req.body.religiousness,
+      sector: req.body.sector,
+      isRevert: req.body.isRevert === "true" || req.body.isRevert === true,
+      keepsHalal:
+        req.body.keepsHalal === "true" || req.body.keepsHalal === true,
+      prayerFrequency: req.body.prayerFrequency,
+      quranReading: req.body.quranReading,
+      citizenship: req.body.citizenship,
+      originCountry: req.body.originCountry,
+      willingToRelocate:
+        req.body.willingToRelocate === "true" ||
+        req.body.willingToRelocate === true,
+      income: req.body.income,
+      marriageWithin: req.body.marriageWithin,
+      maritalStatus: req.body.maritalStatus,
+      childrenDesire: req.body.childrenDesire,
+      hasChildren: req.body.hasChildren,
+      livingArrangement: req.body.livingArrangement,
+      height: req.body.height,
+      build: req.body.build,
+      ethnicity: req.body.ethnicity,
+      smokes: req.body.smokes === "true" || req.body.smokes === true,
+      drinks: req.body.drinks === "true" || req.body.drinks === true,
+      disability:
+        req.body.disability === "true" || req.body.disability === true,
+      phoneUsage: req.body.phoneUsage,
+      hasBeard: req.body.hasBeard === "true" || req.body.hasBeard === true,
+      wearsHijab:
+        req.body.wearsHijab === "true" || req.body.wearsHijab === true,
+      countryOfBirth: req.body.countryOfBirth,
+      birthDate: req.body.birthDate,
+      tagLine: req.body.tagLine,
+      about: req.body.about,
+      lookingFor: req.body.lookingFor,
+
+      // Handle profile picture if uploaded
+      profilePicture: req.file ? req.file.path : null,
+    };
+
+    // Add mosque location if provided
+    if (parsedMosqueDetails && parsedMosqueDetails.location) {
+      userData.mosqueLocation = parsedMosqueDetails.location;
+    }
+
+    // Fix attachedMosques location to GeoJSON format if needed
+    if (Array.isArray(userData.attachedMosques)) {
+      userData.attachedMosques = userData.attachedMosques.map((mosque) => {
+        if (
+          mosque.location &&
+          typeof mosque.location.lat === "number" &&
+          typeof mosque.location.lng === "number"
+        ) {
+          return {
+            ...mosque,
+            location: {
+              type: "Point",
+              coordinates: [mosque.location.lng, mosque.location.lat],
+            },
+          };
+        }
+        return mosque;
+      });
+    }
+
+    const user = new User(userData);
+
+    // Generate verification token
+    const verificationToken = user.generateVerificationToken();
+    await user.save();
+
+    // Send verification email
+    const verificationUrl = `${process.env.FRONTEND_URL}/auth/verify-email?token=${verificationToken}&email=${user.email}`;
+    await sendVerificationEmail(user, verificationUrl);
+
+    res.status(201).json({
+      success: true,
+      message:
+        "Imam registration successful! Please check your email to verify your account. Your request will be reviewed by our super admin team.",
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: imamName,
+      },
+    });
+  } catch (err) {
+    console.error("Imam registration error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error during imam registration",
+      error: err.message,
+    });
   }
 };
 

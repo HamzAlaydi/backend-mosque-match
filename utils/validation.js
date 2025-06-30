@@ -159,3 +159,68 @@ exports.resetPasswordValidation = [
     min: 6,
   }),
 ];
+
+// Validation rules for imam signup
+exports.imamSignupValidation = [
+  body("firstName").notEmpty().withMessage("First name is required"),
+  body("lastName").notEmpty().withMessage("Last name is required"),
+  body("email").isEmail().normalizeEmail().withMessage("Invalid email"),
+  body("password")
+    .isLength({ min: 8 })
+    .withMessage("Password must be at least 8 characters"),
+  body("phone").notEmpty().withMessage("Phone number is required"),
+  body("message").optional().isString().withMessage("Message must be a string"),
+  body("languages")
+    .isArray({ min: 1 })
+    .withMessage("At least one language is required"),
+  body("role")
+    .equals("imam")
+    .withMessage("Role must be imam"),
+  
+  // Optional fields that might be sent from frontend
+  body("gender").optional().isString(),
+  body("waliName").optional().isString(),
+  body("waliPhone").optional().isString(),
+  body("waliEmail").optional().isString(),
+  body("educationLevel").optional().isString(),
+  body("profession").optional().isString(),
+  body("jobTitle").optional().isString(),
+  body("firstLanguage").optional().isString(),
+  body("secondLanguage").optional().isString(),
+  body("religiousness").optional().isString(),
+  body("sector").optional().isString(),
+  body("isRevert").optional().isBoolean(),
+  body("keepsHalal").optional().isBoolean(),
+  body("prayerFrequency").optional().isString(),
+  body("quranReading").optional().isString(),
+  body("citizenship").optional().isString(),
+  body("originCountry").optional().isString(),
+  body("willingToRelocate").optional().isBoolean(),
+  body("income").optional().isString(),
+  body("marriageWithin").optional().isString(),
+  body("maritalStatus").optional().isString(),
+  body("childrenDesire").optional().isString(),
+  body("hasChildren").optional().isString(),
+  body("livingArrangement").optional().isString(),
+  body("height").optional().isString(),
+  body("build").optional().isString(),
+  body("ethnicity").optional().isString(),
+  body("smokes").optional().isBoolean(),
+  body("drinks").optional().isBoolean(),
+  body("disability").optional().isBoolean(),
+  body("phoneUsage").optional().isString(),
+  body("hasBeard").optional().isBoolean(),
+  body("wearsHijab").optional().isBoolean(),
+  body("currentLocation").optional().isString(),
+  body("countryOfBirth").optional().isString(),
+  body("birthDate").optional().isString(),
+  body("tagLine").optional().isString(),
+  body("about").optional().isString(),
+  body("lookingFor").optional().isString(),
+  body("profilePicturePreview").optional().isString(),
+  body("distance").optional().isNumeric(),
+  body("attachedMosques").optional().isArray(),
+  body("mosqueLocation").optional().isString(),
+  body("mosqueDetails").optional().isString(),
+  body("mosqueAddress").optional().isString(),
+];
