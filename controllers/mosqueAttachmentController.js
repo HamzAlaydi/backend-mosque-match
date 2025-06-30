@@ -351,6 +351,14 @@ exports.approveAttachmentRequest = async (req, res) => {
     console.log("Looking for request with ID:", requestId);
     console.log("Imam ID:", imamId);
 
+    // Validate requestId
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+      console.log("Invalid requestId format:", requestId);
+      return res.status(400).json({
+        message: "Invalid request ID format",
+      });
+    }
+
     // Find the request
     const request = await MosqueAttachmentRequest.findById(requestId)
       .populate("userId")
@@ -378,19 +386,12 @@ exports.approveAttachmentRequest = async (req, res) => {
       });
     }
 
-    // Check if request is already processed
-    if (request.status !== "pending") {
-      console.log("Request already processed, status:", request.status);
-      return res.status(400).json({
-        message: "This verification request has already been processed",
-      });
-    }
-
     console.log("Processing approval...");
 
-    // Update request status
+    // Update request status (allow from any status)
     request.status = "approved";
     request.imamResponse = imamResponse;
+    request.denialReason = null; // Clear denial reason when approving
     request.reviewedAt = new Date();
     await request.save();
 
@@ -444,6 +445,14 @@ exports.denyAttachmentRequest = async (req, res) => {
     console.log("Looking for request with ID:", requestId);
     console.log("Imam ID:", imamId);
 
+    // Validate requestId
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+      console.log("Invalid requestId format:", requestId);
+      return res.status(400).json({
+        message: "Invalid request ID format",
+      });
+    }
+
     // Find the request
     const request = await MosqueAttachmentRequest.findById(requestId);
 
@@ -469,17 +478,9 @@ exports.denyAttachmentRequest = async (req, res) => {
       });
     }
 
-    // Check if request is already processed
-    if (request.status !== "pending") {
-      console.log("Request already processed, status:", request.status);
-      return res.status(400).json({
-        message: "This verification request has already been processed",
-      });
-    }
-
     console.log("Processing denial...");
 
-    // Update request status
+    // Update request status (allow from any status)
     request.status = "denied";
     request.denialReason = denialReason;
     request.imamResponse = imamResponse;
@@ -580,6 +581,14 @@ exports.updateImamResponse = async (req, res) => {
 
     console.log("Looking for request with ID:", requestId);
     console.log("New imam response:", imamResponse);
+
+    // Validate requestId
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+      console.log("Invalid requestId format:", requestId);
+      return res.status(400).json({
+        message: "Invalid request ID format",
+      });
+    }
 
     // Find the request
     const request = await MosqueAttachmentRequest.findById(requestId);
@@ -828,3 +837,4 @@ const updateUserVerificationStatus = async (userId) => {
     throw error;
   }
 };
+ 
