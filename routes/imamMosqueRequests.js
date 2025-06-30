@@ -7,6 +7,7 @@ const {
   getImamMosqueRequests,
   approveImamMosqueRequest,
   denyImamMosqueRequest,
+  updateImamMosqueRequest,
   getImamRequestsByImam,
 } = require("../controllers/imamMosqueRequestController");
 
@@ -44,5 +45,10 @@ router.post(
   roles(["superadmin"]),
   denyImamMosqueRequest
 );
+
+// @route   PUT /api/imam-mosque-requests/:requestId
+// @desc    Update an imam mosque request status
+// @access  Private (Superadmin)
+router.put("/:requestId", auth, roles(["superadmin"]), updateImamMosqueRequest);
 
 module.exports = router;

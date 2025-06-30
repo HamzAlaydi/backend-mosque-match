@@ -118,12 +118,33 @@ const getImamMosqueRequests = async (req, res) => {
     }
 
     const requests = await ImamMosqueRequest.find(filter)
-      .populate("imamId", "name email phone")
+      .populate("imamId", "firstName lastName email phone")
       .populate("mosqueId", "name address externalId")
-      .populate("reviewedBy", "name")
+      .populate("reviewedBy", "firstName lastName")
       .sort({ createdAt: -1 });
 
-    res.json(requests);
+    // Add virtual name field to imam data
+    const requestsWithFormattedNames = requests.map((request) => {
+      const requestObj = request.toObject();
+      if (requestObj.imamId) {
+        requestObj.imamId.name = `${requestObj.imamId.firstName || ""} ${
+          requestObj.imamId.lastName || ""
+        }`.trim();
+      }
+      if (requestObj.reviewedBy) {
+        requestObj.reviewedBy.name = `${
+          requestObj.reviewedBy.firstName || ""
+        } ${requestObj.reviewedBy.lastName || ""}`.trim();
+      }
+      return requestObj;
+    });
+
+    console.log(
+      "Imam mosque requests with populated data:",
+      JSON.stringify(requestsWithFormattedNames, null, 2)
+    );
+
+    res.json(requestsWithFormattedNames);
   } catch (error) {
     console.error("Error getting imam mosque requests:", error);
     res.status(500).json({
@@ -141,10 +162,21 @@ const getImamRequestsByImam = async (req, res) => {
 
     const requests = await ImamMosqueRequest.find({ imamId })
       .populate("mosqueId", "name address externalId")
-      .populate("reviewedBy", "name")
+      .populate("reviewedBy", "firstName lastName")
       .sort({ createdAt: -1 });
 
-    res.json(requests);
+    // Add virtual name field to reviewedBy data
+    const requestsWithFormattedNames = requests.map((request) => {
+      const requestObj = request.toObject();
+      if (requestObj.reviewedBy) {
+        requestObj.reviewedBy.name = `${
+          requestObj.reviewedBy.firstName || ""
+        } ${requestObj.reviewedBy.lastName || ""}`.trim();
+      }
+      return requestObj;
+    });
+
+    res.json(requestsWithFormattedNames);
   } catch (error) {
     console.error("Error getting imam's requests:", error);
     res.status(500).json({
@@ -211,9 +243,28 @@ const approveImamMosqueRequest = async (req, res) => {
       }
     }
 
+    // Fetch the updated request with proper population
+    const updatedRequest = await ImamMosqueRequest.findById(requestId)
+      .populate("imamId", "firstName lastName email phone")
+      .populate("mosqueId", "name address externalId")
+      .populate("reviewedBy", "firstName lastName");
+
+    // Add virtual name field to imam data
+    const requestObj = updatedRequest.toObject();
+    if (requestObj.imamId) {
+      requestObj.imamId.name = `${requestObj.imamId.firstName || ""} ${
+        requestObj.imamId.lastName || ""
+      }`.trim();
+    }
+    if (requestObj.reviewedBy) {
+      requestObj.reviewedBy.name = `${requestObj.reviewedBy.firstName || ""} ${
+        requestObj.reviewedBy.lastName || ""
+      }`.trim();
+    }
+
     res.json({
       message: "Request approved successfully",
-      request,
+      request: requestObj,
     });
   } catch (error) {
     console.error("Error approving imam mosque request:", error);
@@ -262,12 +313,153 @@ const denyImamMosqueRequest = async (req, res) => {
 
     await request.save();
 
+    // Fetch the updated request with proper population
+    const updatedRequest = await ImamMosqueRequest.findById(requestId)
+      .populate("imamId", "firstName lastName email phone")
+      .populate("mosqueId", "name address externalId")
+      .populate("reviewedBy", "firstName lastName");
+
+    // Add virtual name field to imam data
+    const requestObj = updatedRequest.toObject();
+    if (requestObj.imamId) {
+      requestObj.imamId.name = `${requestObj.imamId.firstName || ""} ${
+        requestObj.imamId.lastName || ""
+      }`.trim();
+    }
+    if (requestObj.reviewedBy) {
+      requestObj.reviewedBy.name = `${requestObj.reviewedBy.firstName || ""} ${
+        requestObj.reviewedBy.lastName || ""
+      }`.trim();
+    }
+
     res.json({
       message: "Request denied successfully",
-      request,
+      request: requestObj,
     });
   } catch (error) {
     console.error("Error denying imam mosque request:", error);
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+// @desc    Update an imam mosque request status
+// @route   PUT /api/imam-mosque-requests/:requestId
+// @access  Private (Superadmin)
+const updateImamMosqueRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { status, superadminResponse, denialReason } = req.body;
+    const superadminId = req.user.id;
+
+    const request = await ImamMosqueRequest.findById(requestId)
+      .populate("imamId")
+      .populate("mosqueId");
+
+    if (!request) {
+      return res.status(404).json({
+        message: "Request not found",
+      });
+    }
+
+    // Validate status
+    if (!["pending", "approved", "denied"].includes(status)) {
+      return res.status(400).json({
+        message: "Invalid status. Must be pending, approved, or denied",
+      });
+    }
+
+    // Validate required fields based on status
+    if (status === "denied" && (!denialReason || denialReason.trim() === "")) {
+      return res.status(400).json({
+        message: "Denial reason is required when status is denied",
+      });
+    }
+
+    // Store previous status for mosque assignment logic
+    const previousStatus = request.status;
+
+    // Update the request
+    request.status = status;
+    request.reviewedBy = superadminId;
+    request.reviewedAt = new Date();
+
+    if (status === "approved") {
+      request.superadminResponse =
+        superadminResponse || "Request approved by superadmin";
+      request.denialReason = undefined; // Clear denial reason if it was denied before
+    } else if (status === "denied") {
+      request.denialReason = denialReason.trim();
+      request.superadminResponse = undefined; // Clear approval response if it was approved before
+    } else {
+      // Reset to pending
+      request.superadminResponse = undefined;
+      request.denialReason = undefined;
+      request.reviewedBy = undefined;
+      request.reviewedAt = undefined;
+    }
+
+    await request.save();
+
+    // Handle mosque assignment logic
+    const imam = await User.findById(request.imamId._id);
+    if (imam && status === "approved") {
+      const mosqueData = {
+        id: request.mosqueId._id,
+        name: request.mosqueId.name,
+        address: request.mosqueId.address,
+        isDefault: false,
+      };
+
+      if (!imam.assignedMosques) {
+        imam.assignedMosques = [];
+      }
+
+      // Check if mosque is already assigned
+      const isAlreadyAssigned = imam.assignedMosques.some(
+        (m) => m.id === request.mosqueId._id.toString()
+      );
+
+      if (!isAlreadyAssigned) {
+        imam.assignedMosques.push(mosqueData);
+        await imam.save();
+      }
+    } else if (imam && previousStatus === "approved" && status !== "approved") {
+      // Remove mosque from assigned mosques if status changed from approved to something else
+      if (imam.assignedMosques) {
+        imam.assignedMosques = imam.assignedMosques.filter(
+          (m) => m.id !== request.mosqueId._id.toString()
+        );
+        await imam.save();
+      }
+    }
+
+    // Fetch the updated request with proper population
+    const updatedRequest = await ImamMosqueRequest.findById(requestId)
+      .populate("imamId", "firstName lastName email phone")
+      .populate("mosqueId", "name address externalId")
+      .populate("reviewedBy", "firstName lastName");
+
+    // Add virtual name field to imam data
+    const requestObj = updatedRequest.toObject();
+    if (requestObj.imamId) {
+      requestObj.imamId.name = `${requestObj.imamId.firstName || ""} ${
+        requestObj.imamId.lastName || ""
+      }`.trim();
+    }
+    if (requestObj.reviewedBy) {
+      requestObj.reviewedBy.name = `${requestObj.reviewedBy.firstName || ""} ${
+        requestObj.reviewedBy.lastName || ""
+      }`.trim();
+    }
+
+    res.json({
+      message: `Request ${status} successfully`,
+      request: requestObj,
+    });
+  } catch (error) {
+    console.error("Error updating imam mosque request:", error);
     res.status(500).json({
       message: "Server error",
     });
@@ -279,5 +471,6 @@ module.exports = {
   getImamMosqueRequests,
   approveImamMosqueRequest,
   denyImamMosqueRequest,
+  updateImamMosqueRequest,
   getImamRequestsByImam,
 };
