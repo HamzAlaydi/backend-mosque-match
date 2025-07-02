@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const User = require("../models/User");
 const { sendVerificationEmail } = require("../services/emailService");
+const { uploadToS3 } = require("../services/awsService");
 
 const { validationResult } = require("express-validator");
 const config = require("../config/keys");
@@ -29,11 +30,56 @@ exports.registerUser = async (req, res) => {
     return res.status(400).json({ errors: errors.array() });
 
   const { email, password, role, gender } = req.body;
-  console.log(req.body);
 
   try {
     if (await User.findOne({ email }))
       return res.status(400).json({ message: "Email already exists" });
+
+    // Handle profile picture upload
+    let profilePictureUrl = null;
+    console.log("=== PROFILE PICTURE DEBUG ===");
+    console.log("req.file exists:", !!req.file);
+    console.log("AWS_BUCKET_NAME:", process.env.AWS_BUCKET_NAME);
+
+    if (req.file) {
+      console.log("File details:", {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        bufferLength: req.file.buffer ? req.file.buffer.length : 0,
+      });
+
+      try {
+        // Upload to AWS S3
+        console.log("Attempting S3 upload...");
+        const result = await uploadToS3(
+          req.file.buffer,
+          req.file.originalname,
+          process.env.AWS_BUCKET_NAME,
+          req.file.mimetype
+        );
+        profilePictureUrl = result.s3Url;
+        console.log("S3 upload successful:", profilePictureUrl);
+      } catch (error) {
+        console.error("S3 upload error:", error);
+        console.log("Falling back to base64...");
+        // Fallback to base64 if S3 fails
+        const base64Image = req.file.buffer.toString("base64");
+        const mimeType = req.file.mimetype;
+        profilePictureUrl = `data:${mimeType};base64,${base64Image}`;
+        console.log(
+          "Base64 fallback created, length:",
+          profilePictureUrl.length
+        );
+      }
+    } else {
+      console.log("No file uploaded - req.file is null/undefined");
+    }
+    console.log(
+      "Final profilePictureUrl:",
+      profilePictureUrl ? "EXISTS" : "NULL"
+    );
+    console.log("=== END PROFILE PICTURE DEBUG ===");
 
     // Base user data
     const userData = {
@@ -96,7 +142,7 @@ exports.registerUser = async (req, res) => {
       drinks: req.body.drinks,
       phoneUsage: req.body.phoneUsage,
       // Profile Pictures
-      profilePicture: req.body.profilePicture,
+      profilePicture: profilePictureUrl,
       blurredProfilePicture: req.body.blurredProfilePicture,
       unblurRequest: req.body.unblurRequest,
     };
@@ -140,9 +186,26 @@ exports.registerUser = async (req, res) => {
     }
 
     const user = new User(userData);
+    console.log("=== USER SAVE DEBUG ===");
+    console.log(
+      "profilePicture in userData:",
+      userData.profilePicture ? "EXISTS" : "NULL"
+    );
+    console.log(
+      "profilePicture length:",
+      userData.profilePicture ? userData.profilePicture.length : 0
+    );
+
     // Generate verification token
     const verificationToken = user.generateVerificationToken();
     await user.save();
+
+    console.log("User saved successfully");
+    console.log(
+      "profilePicture after save:",
+      user.profilePicture ? "EXISTS" : "NULL"
+    );
+    console.log("=== END USER SAVE DEBUG ===");
     const verificationUrl = `${process.env.FRONTEND_URL}/auth/verify-email?token=${verificationToken}&email=${user.email}`;
     await sendVerificationEmail(user, verificationUrl);
 
@@ -206,6 +269,32 @@ exports.registerImam = async (req, res) => {
     const firstName = nameParts[0] || req.body.firstName || "";
     const lastName = nameParts.slice(1).join(" ") || req.body.lastName || "";
 
+    // Handle profile picture upload for imam
+    let profilePictureUrl = null;
+    if (req.file) {
+      try {
+        // Upload to AWS S3
+        const result = await uploadToS3(
+          req.file.buffer,
+          req.file.originalname,
+          process.env.AWS_BUCKET_NAME,
+          req.file.mimetype
+        );
+        profilePictureUrl = result.s3Url;
+        console.log("Imam profile picture uploaded to S3:", profilePictureUrl);
+      } catch (error) {
+        console.error("S3 upload error:", error);
+        // Fallback to base64 if S3 fails
+        const base64Image = req.file.buffer.toString("base64");
+        const mimeType = req.file.mimetype;
+        profilePictureUrl = `data:${mimeType};base64,${base64Image}`;
+        console.log(
+          "Fallback to base64 for imam, length:",
+          profilePictureUrl.length
+        );
+      }
+    }
+
     // Create user data for imam
     const userData = {
       firstName,
@@ -266,8 +355,8 @@ exports.registerImam = async (req, res) => {
       about: req.body.about,
       lookingFor: req.body.lookingFor,
 
-      // Handle profile picture if uploaded
-      profilePicture: req.file ? req.file.path : null,
+      // Profile picture
+      profilePicture: profilePictureUrl,
     };
 
     // Add mosque location if provided

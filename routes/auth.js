@@ -21,14 +21,27 @@ const {
 const upload = require("../middleware/upload");
 const multer = require("multer");
 const parseJsonFields = require("../middleware/parseJsonFields");
+const parseBooleanFields = require("../middleware/parseBooleanFields");
 
 // @route   POST /api/auth/register
 // @desc    Register user
 // @access  Public
 router.post(
   "/register",
-  userRegisterValidation,
   upload.single("profilePicture"),
+  parseJsonFields(["wali", "attachedMosques"]),
+  parseBooleanFields([
+    "terms",
+    "isRevert",
+    "keepsHalal",
+    "willingToRelocate",
+    "smokes",
+    "drinks",
+    "disability",
+    "hasBeard",
+    "wearsHijab",
+  ]),
+  userRegisterValidation,
   registerUser
 );
 

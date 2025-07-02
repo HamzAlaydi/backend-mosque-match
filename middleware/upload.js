@@ -20,4 +20,14 @@ const upload = multer({
   },
 });
 
+// Add debugging middleware to log when multer processes files
+const debugUpload = (req, res, next) => {
+  console.log("Multer middleware called");
+  console.log("Request headers:", {
+    "content-type": req.headers["content-type"],
+    "content-length": req.headers["content-length"],
+  });
+  next();
+};
+
 module.exports = upload;
