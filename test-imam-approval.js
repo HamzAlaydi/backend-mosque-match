@@ -1,6 +1,5 @@
 const axios = require("axios");
-
-const BASE_URL = "http://localhost:5000/api";
+import { rootRoute } from "../mosque-match/shared/constants/backendLink";
 
 // Test data - you'll need to replace these with actual values from your database
 const IMAM_TOKEN = "YOUR_IMAM_TOKEN_HERE"; // Replace with actual imam token
@@ -14,7 +13,7 @@ async function testImamApproval() {
     console.log("1. Testing GET /mosque-attachments/imam-requests");
     try {
       const response = await axios.get(
-        `${BASE_URL}/mosque-attachments/imam-requests`,
+        `${rootRoute}/mosque-attachments/imam-requests`,
         {
           headers: {
             Authorization: `Bearer ${IMAM_TOKEN}`,
@@ -36,7 +35,7 @@ async function testImamApproval() {
     console.log("\n2. Testing POST /mosque-attachments/:requestId/approve");
     try {
       const response = await axios.post(
-        `${BASE_URL}/mosque-attachments/${REQUEST_ID}/approve`,
+        `${rootRoute}/mosque-attachments/${REQUEST_ID}/approve`,
         {
           imamResponse: "User verified successfully",
         },
@@ -56,7 +55,7 @@ async function testImamApproval() {
     console.log("\n3. Testing POST /mosque-attachments/:requestId/deny");
     try {
       const response = await axios.post(
-        `${BASE_URL}/mosque-attachments/${REQUEST_ID}/deny`,
+        `${rootRoute}/mosque-attachments/${REQUEST_ID}/deny`,
         {
           denialReason: "Verification denied by imam",
           imamResponse: "User verification denied",

@@ -191,7 +191,7 @@ function getDistance([lon1, lat1], [lon2, lat2]) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// @desc    Get matches for a user by mosque ID
+// @desc    Get matches for a user by mosque ID with filters
 // @route   GET /api/matches/mosque/:mosqueId
 // @access  Private
 exports.findMatchesByMosque = async (req, res) => {
@@ -215,23 +215,125 @@ exports.findMatchesByMosque = async (req, res) => {
         .json({ message: "Only males and females can search" });
     }
 
-    // Find users of the opposite gender associated with the specified mosque ID
-    // Exclude blocked users
-    const matches = await User.find({
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Extract filter parameters from query (same as findMatches)
+    const {
+      religiousness,
+      maritalStatus,
+      minAge,
+      maxAge,
+      hasChildren,
+      childrenDesire,
+      educationLevel,
+      profession,
+      willingToRelocate,
+    } = req.query;
+
+    // Build filter conditions
+    const filterConditions = {
       "attachedMosques.id": mosqueId,
       role: targetRole,
+      // Exclude blocked users and users who blocked current user
       _id: {
         $nin: [
           ...(currentUser.blockedUsers || []),
           ...(currentUser.blockedBy || []),
         ],
       },
-    }).select("-password -blockedUsers -blockedBy");
+    };
+
+    // Add demographic filters if provided (same logic as findMatches)
+    if (religiousness) {
+      // Handle both array and string formats
+      const religionValues = Array.isArray(religiousness)
+        ? religiousness
+        : religiousness.split(",").map((val) => val.toLowerCase());
+      filterConditions.religiousness = { $in: religionValues };
+    }
+
+    if (maritalStatus) {
+      const statusValues = Array.isArray(maritalStatus)
+        ? maritalStatus
+        : maritalStatus.split(",").map((val) => val.toLowerCase());
+      filterConditions.maritalStatus = { $in: statusValues };
+    }
+
+    // Add age range filters
+    const currentYear = new Date().getFullYear();
+    let birthDateConditions = {};
+
+    if (minAge) {
+      const minBirthYear = currentYear - minAge;
+      birthDateConditions.$lte = new Date(
+        `${minBirthYear}-12-31T23:59:59.999Z`
+      );
+    }
+
+    if (maxAge) {
+      const maxBirthYear = currentYear - maxAge;
+      birthDateConditions.$gte = new Date(
+        `${maxBirthYear}-01-01T00:00:00.000Z`
+      );
+    }
+
+    if (Object.keys(birthDateConditions).length > 0) {
+      filterConditions.birthDate = birthDateConditions;
+    }
+
+    if (hasChildren) {
+      const childrenValues = Array.isArray(hasChildren)
+        ? hasChildren
+        : hasChildren.split(",").map((val) => val.toLowerCase());
+      filterConditions.hasChildren = { $in: childrenValues };
+    }
+
+    if (childrenDesire) {
+      const desireValues = Array.isArray(childrenDesire)
+        ? childrenDesire
+        : childrenDesire.split(",").map((val) => val.toLowerCase());
+      filterConditions.childrenDesire = { $in: desireValues };
+    }
+
+    if (educationLevel) {
+      const educationValues = Array.isArray(educationLevel)
+        ? educationLevel
+        : educationLevel.split(",").map((val) => val.toLowerCase());
+      filterConditions.educationLevel = { $in: educationValues };
+    }
+
+    if (profession) {
+      const professionValues = Array.isArray(profession)
+        ? profession
+        : profession.split(",").map((val) => val.toLowerCase());
+      filterConditions.profession = { $in: professionValues };
+    }
+
+    if (willingToRelocate !== undefined) {
+      // Convert string 'true'/'false' to boolean
+      filterConditions.willingToRelocate =
+        willingToRelocate === "true" || willingToRelocate === true;
+    }
+
+    // --- DEBUG LOGS ---
+    console.log('Mosque filter query:', req.query);
+    console.log('Mongo filter conditions:', filterConditions);
+    // --- END DEBUG LOGS ---
+
+    // Execute search with filters and pagination
+    const matches = await User.find(filterConditions)
+      .select("-password -managedMosques -blockedUsers -blockedBy")
+      .skip(skip)
+      .limit(limit)
+      .lean();
 
     res.json(matches);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
+    console.error("Mosque search error:", err);
+    res.status(500).json({ message: "Search failed", error: err.message });
   }
 };
 
