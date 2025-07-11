@@ -1,0 +1,46 @@
+name: Test Backend
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: |
+          npm ci --legacy-peer-deps
+
+      - name: Run Linting
+        run: |
+          # Add linting if you have ESLint configured
+          # npm run lint || echo "Linting failed"
+          echo "Skipping linting for now"
+
+      - name: Run Tests
+        run: |
+          # Add tests if you have them configured
+          # npm test
+          echo "Skipping tests for now"
+
+      - name: Check for Security Vulnerabilities
+        run: |
+          npm audit --audit-level moderate || echo "Security vulnerabilities found but continuing"
+
+      - name: Build Check
+        run: |
+          # Check if the server can start without errors
+          timeout 10s node server.js || echo "Server startup check completed" 

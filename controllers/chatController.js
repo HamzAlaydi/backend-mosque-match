@@ -73,7 +73,8 @@ exports.getChatList = async (req, res) => {
               gender: "$otherUser.gender",
               birthDate: "$otherUser.birthDate",
               currentLocation: "$otherUser.currentLocation",
-              approvedPhotosFor: "$otherUser.approvedPhotosFor", // Add this line
+              approvedPhotosFor: "$otherUser.approvedPhotosFor",
+              blurPhotoForEveryone: "$otherUser.blurPhotoForEveryone",
             },
           ],
           lastMessage: {
@@ -138,8 +139,14 @@ exports.getChatMessages = async (req, res) => {
       ],
     })
       .sort({ timestamp: 1 })
-      .populate("sender", "firstName lastName profilePicture")
-      .populate("receiver", "firstName lastName profilePicture");
+      .populate(
+        "sender",
+        "firstName lastName profilePicture gender approvedPhotosFor blurPhotoForEveryone"
+      )
+      .populate(
+        "receiver",
+        "firstName lastName profilePicture gender approvedPhotosFor blurPhotoForEveryone"
+      );
 
     // Mark messages as read and emit socket event
     const unreadMessages = await Chat.find({
@@ -222,8 +229,16 @@ exports.sendMessage = async (req, res) => {
     await newMessage.save();
 
     await newMessage.populate([
-      { path: "sender", select: "firstName lastName profilePicture" },
-      { path: "receiver", select: "firstName lastName profilePicture" },
+      {
+        path: "sender",
+        select:
+          "firstName lastName profilePicture gender approvedPhotosFor blurPhotoForEveryone",
+      },
+      {
+        path: "receiver",
+        select:
+          "firstName lastName profilePicture gender approvedPhotosFor blurPhotoForEveryone",
+      },
     ]);
 
     console.log("Message saved and populated:", newMessage);

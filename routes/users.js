@@ -15,13 +15,20 @@ const {
 const roles = require("../middleware/roles");
 const upload = require("../middleware/upload");
 const { userUpdateValidation } = require("../utils/validation");
+const parseBooleanFields = require("../middleware/parseBooleanFields");
 
 router.get("/me", auth, getCurrentUser);
 router.post("/details", auth, getUsersByIds);
 // @route   patch /api/users/profile
 // @desc    Update user profile
 // @access  Private
-router.patch("/profile", auth, userUpdateValidation, updateUserProfile);
+router.patch(
+  "/profile",
+  auth,
+  parseBooleanFields(["blurPhotoForEveryone"]),
+  userUpdateValidation,
+  updateUserProfile
+);
 // @route   PUT /api/users/profile/picture
 // @desc    Update user profile picture
 // @access  Private

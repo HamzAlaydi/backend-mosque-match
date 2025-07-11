@@ -318,11 +318,6 @@ exports.findMatchesByMosque = async (req, res) => {
         willingToRelocate === "true" || willingToRelocate === true;
     }
 
-    // --- DEBUG LOGS ---
-    console.log('Mosque filter query:', req.query);
-    console.log('Mongo filter conditions:', filterConditions);
-    // --- END DEBUG LOGS ---
-
     // Execute search with filters and pagination
     const matches = await User.find(filterConditions)
       .select("-password -managedMosques -blockedUsers -blockedBy")

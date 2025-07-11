@@ -145,6 +145,10 @@ exports.registerUser = async (req, res) => {
       profilePicture: profilePictureUrl,
       blurredProfilePicture: req.body.blurredProfilePicture,
       unblurRequest: req.body.unblurRequest,
+      blurPhotoForEveryone:
+        typeof req.body.blurPhotoForEveryone === "boolean"
+          ? req.body.blurPhotoForEveryone
+          : true,
     };
 
     // Handle boolean fields with defaults if not provided
@@ -357,6 +361,10 @@ exports.registerImam = async (req, res) => {
 
       // Profile picture
       profilePicture: profilePictureUrl,
+      blurPhotoForEveryone:
+        typeof req.body.blurPhotoForEveryone === "boolean"
+          ? req.body.blurPhotoForEveryone
+          : true,
     };
 
     // Add mosque location if provided

@@ -99,6 +99,7 @@ const UserSchema = new Schema(
 
     // Profile Pictures
     profilePicture: { type: String, default: null },
+    blurPhotoForEveryone: { type: Boolean, default: true }, // New field for photo privacy control
     blurredProfilePicture: String,
     unblurRequest: { type: Boolean, default: false },
 

@@ -40,6 +40,7 @@ router.post(
     "disability",
     "hasBeard",
     "wearsHijab",
+    "blurPhotoForEveryone",
   ]),
   userRegisterValidation,
   registerUser
@@ -52,6 +53,7 @@ router.post(
   "/imam-signup",
   upload.single("profilePicture"),
   parseJsonFields(["languages", "attachedMosques"]),
+  parseBooleanFields(["blurPhotoForEveryone"]),
   imamSignupValidation,
   registerImam
 );

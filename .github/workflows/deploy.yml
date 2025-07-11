@@ -1,0 +1,112 @@
+name: Deploy Backend to EC2 mosque-match
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Set up SSH Key
+        run: |
+          echo "${{ secrets.SSH_KEY }}" > key.pem
+          chmod 600 key.pem
+
+      - name: Install Dependencies
+        run: |
+          npm ci --legacy-peer-deps
+
+      - name: Run Tests (Optional)
+        run: |
+          # Uncomment if you have tests
+          # npm test || echo "Tests failed but continuing deployment"
+          echo "Skipping tests for now"
+
+      - name: Archive backend files
+        run: |
+          tar -czf backend.tar.gz . \
+            --exclude=node_modules \
+            --exclude=.git \
+            --exclude=uploads \
+            --exclude=test-*.js \
+            --exclude=.env \
+            --exclude=.env.local \
+            --exclude=.env.production
+
+      - name: Upload backend to EC2
+        run: |
+          scp -o StrictHostKeyChecking=no -i key.pem backend.tar.gz ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/tmp/
+
+      - name: Deploy & restart backend on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i key.pem ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
+            # Create backup of current deployment
+            if [ -d "/var/www/mosqueSearch-backend" ]; then
+              cp -r /var/www/mosqueSearch-backend /var/www/mosqueSearch-backend-backup-$(date +%Y%m%d-%H%M%S)
+            fi
+            
+            # Create deployment directory
+            mkdir -p /var/www/mosqueSearch-backend
+            
+            # Extract new deployment
+            tar -xzf /tmp/backend.tar.gz -C /var/www/mosqueSearch-backend
+            
+            cd /var/www/mosqueSearch-backend
+            
+            # Install production dependencies
+            npm ci --omit=dev
+            
+            # Create necessary directories
+            mkdir -p uploads
+            mkdir -p logs
+            
+            # Set environment variables
+            export NODE_ENV=production
+            export PORT=5000
+            
+            # Stop existing backend process
+            pm2 delete mosque-backend || true
+            
+            # Start the backend server with PM2
+            pm2 start server.js \
+              --name mosque-backend \
+              --env production \
+              --log /var/www/mosqueSearch-backend/logs/backend.log \
+              --error /var/www/mosqueSearch-backend/logs/backend-error.log \
+              --time \
+              --max-memory-restart 512M
+            
+            # Save pm2 configuration
+            pm2 save
+            
+            # Check if the service started successfully
+            sleep 5
+            if pm2 list | grep -q "mosque-backend.*online"; then
+              echo "Backend deployment successful"
+            else
+              echo "Backend deployment failed"
+              pm2 logs mosque-backend --lines 20
+              exit 1
+            fi
+            
+            # Optional: Restart nginx if you're using it as a reverse proxy
+            # sudo systemctl restart nginx || true
+            
+            # Clean up old backups (keep last 3)
+            ls -t /var/www/mosqueSearch-backend-backup-* | tail -n +4 | xargs -r rm -rf
+          EOF
+
+      - name: Cleanup
+        run: |
+          rm -f key.pem backend.tar.gz 

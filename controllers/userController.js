@@ -99,6 +99,7 @@ exports.updateUserProfile = async (req, res) => {
       "marriageWithin",
       "wearsHijab",
       "hasBeard",
+      "blurPhotoForEveryone", // Photo privacy setting
       "attachedMosques", // Include attachedMosques in allowed updates
     ];
 
