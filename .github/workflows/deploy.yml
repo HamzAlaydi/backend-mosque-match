@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 jobs:
-  deploy-backend:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,27 +18,25 @@ jobs:
           chmod 600 key.pem
 
       - name: Install Backend Dependencies
-        working-directory: ./backend-mosque-match
         run: |
           npm ci --legacy-peer-deps
 
       - name: Archive Backend Files
-        working-directory: ./backend-mosque-match
         run: |
           tar -czf backend.tar.gz . package.json package-lock.json
 
       - name: Upload Backend to EC2
         run: |
-          scp -o StrictHostKeyChecking=no -i key.pem backend-mosque-match/backend.tar.gz ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/tmp/
+          scp -o StrictHostKeyChecking=no -i key.pem backend.tar.gz ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/tmp/
 
-      - name: Deploy Backend on EC2
+      - name: Extract & restart Backend on EC2
         run: |
           ssh -o StrictHostKeyChecking=no -i key.pem ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
-            mkdir -p /var/www/backend-mosque-match
-            tar -xzf /tmp/backend.tar.gz -C /var/www/backend-mosque-match
-            cd /var/www/backend-mosque-match
+            mkdir -p /var/www/mosqueSearch-backend
+            tar -xzf /tmp/backend.tar.gz -C /var/www/mosqueSearch-backend
+            cd /var/www/mosqueSearch-backend
             npm install --omit=dev
             pm2 delete mosque-backend || true
-            pm2 start "npm start" --name mosque-backend
+            pm2 start "npm run start" --name mosque-backend
             pm2 save
           EOF
