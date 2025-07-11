@@ -35,14 +35,15 @@ jobs:
 
       - name: Archive backend files
         run: |
-          tar -czf backend.tar.gz . \
+          tar -czf backend.tar.gz \
             --exclude=node_modules \
             --exclude=.git \
             --exclude=uploads \
             --exclude=test-*.js \
             --exclude=.env \
             --exclude=.env.local \
-            --exclude=.env.production
+            --exclude=.env.production \
+            .
 
       - name: Upload backend to EC2
         run: |
