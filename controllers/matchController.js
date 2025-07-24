@@ -167,7 +167,18 @@ exports.findMatches = async (req, res) => {
         return dist < min ? dist : min;
       }, Infinity);
 
-      return { ...match, distance: Math.round(closest) };
+      // Find action history for this match
+      const action = (currentUser.userActionHistory || []).find(
+        (a) => a.targetUserId && a.targetUserId.toString() === match._id.toString()
+      ) || {};
+
+      return {
+        ...match,
+        distance: Math.round(closest),
+        photoRequested: !!action.photoRequested,
+        waliRequested: !!action.waliRequested,
+        messageSent: !!action.messageSent,
+      };
     });
 
     res.json(results.sort((a, b) => a.distance - b.distance));
@@ -325,7 +336,18 @@ exports.findMatchesByMosque = async (req, res) => {
       .limit(limit)
       .lean();
 
-    res.json(matches);
+    res.json(matches.map((match) => {
+      // Find action history for this match
+      const action = (currentUser.userActionHistory || []).find(
+        (a) => a.targetUserId && a.targetUserId.toString() === match._id.toString()
+      ) || {};
+      return {
+        ...match,
+        photoRequested: !!action.photoRequested,
+        waliRequested: !!action.waliRequested,
+        messageSent: !!action.messageSent,
+      };
+    }));
   } catch (err) {
     console.error("Mosque search error:", err);
     res.status(500).json({ message: "Search failed", error: err.message });

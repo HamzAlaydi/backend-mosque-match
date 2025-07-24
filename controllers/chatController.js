@@ -258,6 +258,9 @@ exports.sendMessage = async (req, res) => {
 
     await newNotification.save();
 
+    // Update sender's userActionHistory for messageSent
+    await upsertUserActionFlag(senderId, receiverId, "messageSent");
+
     // Emit the message to both users using Socket.IO
     try {
       socketService.emitNewMessage(senderId, receiverId, newMessage);
@@ -360,6 +363,7 @@ exports.markMessagesAsRead = async (req, res) => {
 // @route   POST /api/chats/request-photo/:userId
 // @access  Private
 exports.requestPhotoAccess = async (req, res) => {
+  console.log('requestPhotoAccess called');
   try {
     const senderId = req.user.id;
     const receiverId = req.params.userId;
@@ -423,6 +427,9 @@ exports.requestPhotoAccess = async (req, res) => {
     } catch (socketError) {
       console.error("Socket emission error:", socketError);
     }
+
+    // Update sender's userActionHistory for photoRequested
+    await upsertUserActionFlag(senderId, receiverId, "photoRequested");
 
     res.json({
       message: "Photo access request sent",
@@ -645,6 +652,7 @@ exports.updateTypingStatus = async (req, res) => {
 // @route   POST /api/chats/request-photo/:userId
 // @access  Private
 exports.requestPhotoAccessWithMessage = async (req, res) => {
+  console.log('requestPhotoAccessWithMessage called');
   try {
     const senderId = req.user.id;
     const receiverId = req.params.userId;
@@ -697,10 +705,7 @@ exports.requestPhotoAccessWithMessage = async (req, res) => {
     // Emit the message and notification via socket
     try {
       socketService.emitNewMessage(senderId, receiverId, photoRequestMessage);
-
-      const roomId = [senderId, receiverId].sort().join("_");
-      socketService.emitToRoom(roomId, "newMessage", photoRequestMessage);
-
+      // Removed: socketService.emitToRoom(roomId, "newMessage", photoRequestMessage);
       // Emit notification
       const io = req.app.get("io");
       if (io) {
@@ -715,11 +720,13 @@ exports.requestPhotoAccessWithMessage = async (req, res) => {
           createdAt: newNotification.createdAt,
         });
       }
-
       console.log("Photo request message sent:", photoRequestMessage);
     } catch (socketError) {
       console.error("Socket emission error:", socketError);
     }
+
+    // Update sender's userActionHistory for photoRequested
+    await upsertUserActionFlag(senderId, receiverId, "photoRequested");
 
     res.status(201).json({
       message: "Photo request sent successfully",
@@ -932,10 +939,7 @@ exports.requestWaliAccessWithMessage = async (req, res) => {
     // Emit via socket
     try {
       socketService.emitNewMessage(senderId, receiverId, waliRequestMessage);
-
-      const roomId = [senderId, receiverId].sort().join("_");
-      socketService.emitToRoom(roomId, "newMessage", waliRequestMessage);
-
+      // Removed: socketService.emitToRoom(roomId, "newMessage", waliRequestMessage);
       // Emit notification
       const io = req.app.get("io");
       if (io) {
@@ -950,11 +954,13 @@ exports.requestWaliAccessWithMessage = async (req, res) => {
           createdAt: newNotification.createdAt,
         });
       }
-
       console.log("Wali request message sent:", waliRequestMessage);
     } catch (socketError) {
       console.error("Socket emission error:", socketError);
     }
+
+    // Update sender's userActionHistory for waliRequested
+    await upsertUserActionFlag(senderId, receiverId, "waliRequested");
 
     res.status(201).json({
       message: "Wali request sent successfully",
@@ -1095,3 +1101,20 @@ exports.respondToWaliRequest = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// Helper to robustly upsert userActionHistory flag
+async function upsertUserActionFlag(userId, targetUserId, flag) {
+  console.log('Upserting action flag:', { userId, targetUserId, flag });
+  const result = await User.updateOne(
+    { _id: userId, "userActionHistory.targetUserId": targetUserId },
+    { $set: { [`userActionHistory.$.${flag}`]: true } }
+  );
+  console.log('UpdateOne result:', result);
+  if (result.matchedCount === 0 && result.modifiedCount === 0) {
+    const pushResult = await User.updateOne(
+      { _id: userId },
+      { $push: { userActionHistory: { targetUserId, [flag]: true } } }
+    );
+    console.log('Push result:', pushResult);
+  }
+}

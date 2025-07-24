@@ -14,10 +14,10 @@ exports.addToInterestList = async (req, res) => {
     const male = await User.findById(maleId);
     const female = await User.findById(femaleId);
 
-    if (!male || male.role !== "male") {
+    if (!male ) {
       return res.status(400).json({ message: "Invalid male user" });
     }
-    if (!female || female.role !== "female") {
+    if (!female) {
       return res.status(400).json({ message: "Invalid female user" });
     }
 

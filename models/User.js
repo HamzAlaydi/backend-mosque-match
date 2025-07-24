@@ -168,6 +168,15 @@ const UserSchema = new Schema(
     // Block functionality
     blockedUsers: [{ type: Schema.Types.ObjectId, ref: "User" }],
     blockedBy: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    // Persistent per-user action tracking
+    userActionHistory: [
+      {
+        targetUserId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+        photoRequested: { type: Boolean, default: false },
+        waliRequested: { type: Boolean, default: false },
+        messageSent: { type: Boolean, default: false },
+      },
+    ],
   },
   { timestamps: true }
 );
