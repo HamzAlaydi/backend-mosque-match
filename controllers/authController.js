@@ -1,8 +1,9 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 const User = require("../models/User");
-const { sendVerificationEmail } = require("../services/emailService");
+const { sendVerificationEmail, sendPasswordResetEmail } = require("../services/emailService");
 const { uploadToS3 } = require("../services/awsService");
 
 const { validationResult } = require("express-validator");
@@ -551,6 +552,35 @@ exports.resendVerification = async (req, res) => {
     res.status(500).json({
       message: "Failed to resend verification email",
       error: error.message,
+    });
+  }
+};
+
+// @desc    Check if email exists
+// @route   POST /api/auth/check-email
+// @access  Public
+exports.checkEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ 
+        message: "Email is required",
+        exists: false 
+      });
+    }
+
+    const user = await User.findOne({ email });
+    
+    res.status(200).json({ 
+      exists: !!user,
+      message: user ? "Email already exists" : "Email is available"
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      message: "Server error", 
+      error: err.message,
+      exists: false 
     });
   }
 };

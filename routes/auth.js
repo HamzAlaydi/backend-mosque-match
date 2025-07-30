@@ -9,6 +9,7 @@ const {
   resendVerification,
   forgotPassword,
   resetPassword,
+  checkEmail,
 } = require("../controllers/authController");
 const auth = require("../middleware/auth");
 const {
@@ -72,5 +73,10 @@ router.post("/resend-verification", resendVerification);
 // Password reset routes
 router.post("/forgot-password", forgotPasswordValidation, forgotPassword);
 router.post("/reset-password", resetPasswordValidation, resetPassword);
+
+// @route   POST /api/auth/check-email
+// @desc    Check if email exists
+// @access  Public
+router.post("/check-email", checkEmail);
 
 module.exports = router;

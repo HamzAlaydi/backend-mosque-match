@@ -26,6 +26,9 @@ const UserSchema = new Schema(
     },
     emailVerificationToken: String,
     emailVerificationExpires: Date,
+    // Password reset fields
+    resetPasswordToken: String,
+    resetPasswordExpires: Date,
     password: { type: String, required: true, minlength: 6 },
     gender: { type: String, enum: ["male", "female"] },
     role: {
